@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/01.Authentication.Api/">
+    <Project Path="Authentication.Api/Authentication.Api.csproj" />
+  </Folder>
+  <Folder Name="/02.Authentication.Application/">
+    <Project Path="Authentication.Application/Authentication.Application.csproj" />
+  </Folder>
+  <Folder Name="/03.Authentication.Domain/">
+    <Project Path="Authentication.Domain/Authentication.Domain.csproj" />
+  </Folder>
+  <Folder Name="/04.Authentication.Infrastructure/">
+    <Project Path="Authentication.Infrastructure.Persistance/Authentication.Infrastructure.Persistance.csproj" />
+  </Folder>
+  <Folder Name="/05.Authentication.Test/">
+    <Project Path="Authentication.Test/Authentication.Test.csproj" />
+  </Folder>
+  <Folder Name="/Elementos de la solución/">
+    <File Path=".gitignore" />
+  </Folder>
+</Solution>
