@@ -1,7 +1,58 @@
+# Visual Studio
 .vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
 
+# Build results
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Configuración local con secretos
 **/appsettings.json
 **/appsettings.Development.json
 **/appsettings.*.json
+.env
+.env.*
+*.env
 
+# Permitir archivos de ejemplo
 !**/appsettings.example.json
+
+# Logs
+*.log
+logs/
+
+# Test results / coverage
+TestResults/
+*.trx
+coverage/
+coverage.opencover.xml
+coverage.cobertura.xml
+*.coverage
+*.coveragexml
+
+# NuGet
+*.nupkg
+packages/
+.nuget/packages/
+
+# Rider / JetBrains
+.idea/
+*.DotSettings.user
+
+# VS Code local
+.vscode/
+
+# Archivos temporales
+*.tmp
+*.temp
+*.cache
+.DS_Store
+Thumbs.db
