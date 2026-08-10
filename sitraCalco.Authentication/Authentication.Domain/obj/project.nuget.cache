@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "dgSpecHash": "JdW/vXwaCIQ=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\juan.eusse\\source\\repos\\sitraCalco\\sitraCalco.Authentication\\Authentication.Domain\\Authentication.Domain.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\fluentvalidation\\12.1.1\\fluentvalidation.12.1.1.nupkg.sha512",
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\9.0.17\\microsoft.entityframeworkcore.abstractions.9.0.17.nupkg.sha512",
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\microsoft.extensions.configuration\\9.0.17\\microsoft.extensions.configuration.9.0.17.nupkg.sha512",
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\microsoft.extensions.configuration.abstractions\\9.0.17\\microsoft.extensions.configuration.abstractions.9.0.17.nupkg.sha512",
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\microsoft.extensions.primitives\\9.0.17\\microsoft.extensions.primitives.9.0.17.nupkg.sha512",
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\polly\\8.7.0\\polly.8.7.0.nupkg.sha512",
+    "C:\\Users\\juan.eusse\\.nuget\\packages\\polly.core\\8.7.0\\polly.core.8.7.0.nupkg.sha512"
+  ],
+  "logs": []
+}
