@@ -1,5 +1,5 @@
-using Authentication.Infrastructure.Persistance.Data;
-using Authentication.Application;
+using KitchenTraceability.Infrastructure.Persistance.Data;
+using KitchenTraceability.Application;
 
 var builder = WebApplication.CreateBuilder(args);
 

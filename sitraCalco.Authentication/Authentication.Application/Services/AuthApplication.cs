@@ -64,10 +64,9 @@ namespace Authentication.Application.Services
 
                 return await Authorize(wordpressUser.WordpressUserLogin);
             }
-            catch (Exception ex)
+            catch
             {
-                Exception exception = new("Failed" + ex.InnerException + "\n" + ex.Message);
-                throw exception;
+                throw;
             }
         }
 
@@ -121,14 +120,17 @@ namespace Authentication.Application.Services
             var localUser = await _userRepository.GetUserByLogin(userLogin);
 
             if (localUser is null)
-                return null;
+                throw new UnauthorizedAccessException("El usuario no tiene permisos asignados en el aplicativo.");
+
+            if (!localUser.StatusUser)
+                throw new UnauthorizedAccessException("El usuario está inactivo en el aplicativo.");
 
             var user = _mapper.Map<UserDto>(localUser);
 
             var menuOptions = (await _menuOptionApplication.GetByRole(user.IdRole)).ToList();
 
             if (!menuOptions.Any())
-                return null;
+                throw new UnauthorizedAccessException("El usuario no tiene permisos asignados en el aplicativo.");
 
             var tokenData = _jwtTokenApplication.GenerateToken(user);
 

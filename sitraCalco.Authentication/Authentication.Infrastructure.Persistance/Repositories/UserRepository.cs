@@ -90,7 +90,7 @@ namespace Authentication.Infrastructure.Persistance.Repositories
                 .AsNoTracking()
                 .Include(x => x.Userroles)
                     .ThenInclude(x => x.IdRoleNavigation)
-                .FirstOrDefaultAsync(x => x.UserLogin.ToLower() == normalizedUserLogin && x.StatusUser);
+                .FirstOrDefaultAsync(x => x.UserLogin.ToLower() == normalizedUserLogin);
         }
 
         /// <summary>

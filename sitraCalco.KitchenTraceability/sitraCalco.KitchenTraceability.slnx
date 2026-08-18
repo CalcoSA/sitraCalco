@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/01.KitchenTraceability.Api/">
+    <Project Path="KitchenTraceability.Api/KitchenTraceability.Api.csproj" />
+  </Folder>
+  <Folder Name="/02.KitchenTraceability.Application/">
+    <Project Path="KitchenTraceability.Application/KitchenTraceability.Application.csproj" />
+  </Folder>
+  <Folder Name="/03.KitchenTraceability.Domain/">
+    <Project Path="KitchenTraceability.Domain/KitchenTraceability.Domain.csproj" />
+  </Folder>
+  <Folder Name="/04.KitchenTraceability.Infrastructure/">
+    <Project Path="KitchenTraceability.Infrastructure.Persistance/KitchenTraceability.Infrastructure.Persistance.csproj" />
+  </Folder>
+  <Folder Name="/05.KitchenTraceability.Test/">
+    <Project Path="KitchenTraceability.Test/KitchenTraceability.Test.csproj" />
+  </Folder>
+</Solution>
