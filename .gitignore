@@ -8,11 +8,15 @@
 # Build results
 bin/
 obj/
+**/bin/
+**/obj/
 [Bb]uild/
 [Dd]ebug/
 [Rr]elease/
 x64/
 x86/
+artifacts/
+publish/
 
 # Configuración local con secretos
 **/appsettings.json

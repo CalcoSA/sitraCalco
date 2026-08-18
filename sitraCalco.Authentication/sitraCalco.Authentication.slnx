@@ -14,7 +14,4 @@
   <Folder Name="/05.Authentication.Test/">
     <Project Path="Authentication.Test/Authentication.Test.csproj" />
   </Folder>
-  <Folder Name="/Elementos de la solución/">
-    <File Path=".gitignore" />
-  </Folder>
 </Solution>

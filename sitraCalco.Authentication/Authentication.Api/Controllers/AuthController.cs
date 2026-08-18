@@ -31,7 +31,7 @@ namespace Authentication.Api.Controllers
                     return Unauthorized(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "Usuario o contraseña incorrectos, o el usuario no tiene permisos asignados.",
+                        Message = "Usuario o contraseña incorrectos.",
                         Result = new { }
                     });
                 }
@@ -41,6 +41,15 @@ namespace Authentication.Api.Controllers
                     IsSuccess = true,
                     Message = "Login exitoso.",
                     Result = authResponse
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = ex.Message,
+                    Result = new { }
                 });
             }
             catch (Exception ex)
