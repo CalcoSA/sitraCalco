@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/01.Inventory.Api/">
+    <Project Path="Inventory.Api/Inventory.Api.csproj" />
+  </Folder>
+  <Folder Name="/02.Inventory.Application/">
+    <Project Path="Inventory.Application/Inventory.Application.csproj" />
+  </Folder>
+  <Folder Name="/03.Inventory.Domain/">
+    <Project Path="Inventory.Domain/Inventory.Domain.csproj" />
+  </Folder>
+  <Folder Name="/04.Inventory.Infrastructure/">
+    <Project Path="Inventory.Infrastructure.Persistance/Inventory.Infrastructure.Persistance.csproj" />
+  </Folder>
+  <Folder Name="/05.Inventory.Test/">
+    <Project Path="Inventory.Test/Inventory.Test.csproj" />
+  </Folder>
+</Solution>
