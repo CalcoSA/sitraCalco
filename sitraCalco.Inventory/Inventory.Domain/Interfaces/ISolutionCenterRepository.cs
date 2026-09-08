@@ -20,5 +20,23 @@ namespace Inventory.Domain.Interfaces
         Task<bool> SolutionCenterNameExists(string solutionCenterName);
 
         Task<bool> SectionNameExists(long solutionCenterId,string sectionName);
+
+        Task<PagedDto<SolutionCenterListDto>> GetPagedSolutionCenters(int page,int take,long? solutionCenterTypeId = null);
+
+        Task<SolutionCenterDetailDto?> GetSolutionCenterById(long solutionCenterId);
+
+        Task<bool> UpdateSolutionCenterStatus(long solutionCenterId,bool isActive);
+
+        Task<bool> UpdateSectionStatus(long sectionId,bool isActive);
+
+        Task<IEnumerable<Product>> GetSectionProducts(long solutionCenterId,long sectionId);
+
+        Task<bool> SectionBelongsToSolutionCenter(long solutionCenterId,long sectionId);
+
+        Task<long> AddProductToSection(long solutionCenterId,long sectionId,long productId,int position,string createdBy);
+
+        Task<bool> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
+
+        Task<bool> DeleteProductFromSection(long solutionCenterId,long sectionId,long solutionCenterProductId);
     }
 }

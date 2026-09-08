@@ -12,5 +12,9 @@ namespace Inventory.Domain.Interfaces
         Task<IEnumerable<Product>> SearchProducts(string search,int take = 20);
 
         Task<IEnumerable<Product>> GetByIds(IEnumerable<long> productIds);
+
+        Task<Product?> GetProductById(long productId);
+
+
     }
 }

@@ -203,5 +203,14 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     ids.Contains(product.product_id))
                 .ToListAsync();
         }
+
+        public async Task<Product?> GetProductById(
+    long productId)
+        {
+            return await _context.Products
+                .AsNoTracking()
+                .FirstOrDefaultAsync(product =>
+                    product.product_id == productId);
+        }
     }
 }
