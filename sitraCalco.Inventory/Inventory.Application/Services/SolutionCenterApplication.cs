@@ -259,5 +259,341 @@ namespace Inventory.Application.Services
                 throw;
             }
         }
+
+        public async Task<PagedDto<SolutionCenterListDto>?>
+    GetPagedSolutionCenters(
+        string role,
+        int page,
+        int take)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(role))
+                    return null;
+
+                if (page <= 0)
+                    page = 1;
+
+                if (take <= 0)
+                    take = 10;
+
+                if (take > 100)
+                    take = 100;
+
+                var normalizedRole = role
+                    .Trim()
+                    .ToUpperInvariant();
+
+                long? solutionCenterTypeId;
+
+                switch (normalizedRole)
+                {
+                    case "ALMACEN":
+
+                        // 1 = Bodega
+                        solutionCenterTypeId = 1;
+                        break;
+
+                    case "COSTOS":
+
+                        // Puede visualizar Bodegas
+                        // y Puntos de Venta.
+                        solutionCenterTypeId = null;
+                        break;
+
+                    case "CONTROL INTERNO":
+
+                        // Puede visualizar Bodegas
+                        // y Puntos de Venta.
+                        solutionCenterTypeId = null;
+                        break;
+
+                    default:
+                        return null;
+                }
+
+                return await _solutionCenterRepository
+                    .GetPagedSolutionCenters(
+                        page,
+                        take,
+                        solutionCenterTypeId);
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task<SolutionCenterDetailDto?>
+    GetSolutionCenterById(
+        long solutionCenterId)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                    return null;
+
+                return await _solutionCenterRepository
+                    .GetSolutionCenterById(
+                        solutionCenterId);
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task<bool> UpdateSolutionCenterStatus(
+    long solutionCenterId,
+    bool isActive)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                    return false;
+
+                var solutionCenterExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterExists(solutionCenterId);
+
+                if (!solutionCenterExists)
+                    return false;
+
+                return await _solutionCenterRepository
+                    .UpdateSolutionCenterStatus(
+                        solutionCenterId,
+                        isActive);
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task<bool> UpdateSectionStatus(
+    long sectionId,
+    bool isActive)
+        {
+            try
+            {
+                if (sectionId <= 0)
+                    return false;
+
+                return await _solutionCenterRepository
+                    .UpdateSectionStatus(
+                        sectionId,
+                        isActive);
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task<long> AddProductToSection(
+    long solutionCenterId,
+    long sectionId,
+    AddSectionProductDto request)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                    return 0;
+
+                if (sectionId <= 0)
+                    return 0;
+
+                if (request is null)
+                    return 0;
+
+                if (request.ProductId <= 0)
+                    return 0;
+
+                if (request.Position <= 0)
+                    return 0;
+
+                if (string.IsNullOrWhiteSpace(
+                    request.CreatedBy))
+                    return 0;
+
+                // El centro debe existir.
+                var solutionCenterExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterExists(
+                            solutionCenterId);
+
+                if (!solutionCenterExists)
+                    return 0;
+
+                // La sección debe pertenecer al centro.
+                //
+                // IMPORTANTE:
+                // NO validamos is_active.
+                var sectionBelongs =
+                    await _solutionCenterRepository
+                        .SectionBelongsToSolutionCenter(
+                            solutionCenterId,
+                            sectionId);
+
+                if (!sectionBelongs)
+                    return 0;
+
+                // Producto que se desea agregar.
+                var product =
+                    await _productRepository
+                        .GetProductById(
+                            request.ProductId);
+
+                if (product is null)
+                    return 0;
+
+                // Obtener productos actuales del pasillo.
+                var sectionProducts = (
+                    await _solutionCenterRepository
+                        .GetSectionProducts(
+                            solutionCenterId,
+                            sectionId)
+                ).ToList();
+
+                // Validar product_name + unit_of_measure.
+                var duplicateExists =
+                    sectionProducts.Any(existing =>
+                        string.Equals(
+                            existing.product_name.Trim(),
+                            product.product_name.Trim(),
+                            StringComparison.OrdinalIgnoreCase)
+                        &&
+                        string.Equals(
+                            existing.unit_of_measure.Trim(),
+                            product.unit_of_measure.Trim(),
+                            StringComparison.OrdinalIgnoreCase));
+
+                if (duplicateExists)
+                    return 0;
+
+                // Si hay 10 productos:
+                //
+                // posiciones válidas:
+                // 1 ... 11
+                //
+                // 11 significa agregar al final.
+                var maxPosition =
+                    sectionProducts.Count + 1;
+
+                if (request.Position > maxPosition)
+                    return 0;
+
+                return await _solutionCenterRepository
+                    .AddProductToSection(
+                        solutionCenterId,
+                        sectionId,
+                        request.ProductId,
+                        request.Position,
+                        request.CreatedBy.Trim());
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task<bool> UpdateProductOrder(
+    long solutionCenterId,
+    long sectionId,
+    long solutionCenterProductId,
+    int newPosition)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                    return false;
+
+                if (sectionId <= 0)
+                    return false;
+
+                if (solutionCenterProductId <= 0)
+                    return false;
+
+                if (newPosition <= 0)
+                    return false;
+
+                var solutionCenterExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterExists(
+                            solutionCenterId);
+
+                if (!solutionCenterExists)
+                    return false;
+
+                var sectionBelongs =
+                    await _solutionCenterRepository
+                        .SectionBelongsToSolutionCenter(
+                            solutionCenterId,
+                            sectionId);
+
+                if (!sectionBelongs)
+                    return false;
+
+                // IMPORTANTE:
+                // No validar is_active.
+                // Una sección inactiva puede seguir configurándose.
+
+                return await _solutionCenterRepository
+                    .UpdateProductOrder(
+                        solutionCenterId,
+                        sectionId,
+                        solutionCenterProductId,
+                        newPosition);
+            }
+            catch
+            {
+                throw;
+            }
+        }
+        public async Task<bool> DeleteProductFromSection(
+    long solutionCenterId,
+    long sectionId,
+    long solutionCenterProductId)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                    return false;
+
+                if (sectionId <= 0)
+                    return false;
+
+                if (solutionCenterProductId <= 0)
+                    return false;
+
+                var solutionCenterExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterExists(
+                            solutionCenterId);
+
+                if (!solutionCenterExists)
+                    return false;
+
+                var sectionBelongs =
+                    await _solutionCenterRepository
+                        .SectionBelongsToSolutionCenter(
+                            solutionCenterId,
+                            sectionId);
+
+                if (!sectionBelongs)
+                    return false;
+
+                // IMPORTANTE:
+                // No validamos is_active.
+                // Una sección inactiva sigue siendo configurable.
+
+                return await _solutionCenterRepository
+                    .DeleteProductFromSection(
+                        solutionCenterId,
+                        sectionId,
+                        solutionCenterProductId);
+            }
+            catch
+            {
+                throw;
+            }
+        }
     }
 }
