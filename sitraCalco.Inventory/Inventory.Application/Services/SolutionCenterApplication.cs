@@ -291,20 +291,28 @@ namespace Inventory.Application.Services
                     case "ALMACEN":
 
                         // 1 = Bodega
+                        // Almacén solo puede visualizar bodegas.
                         solutionCenterTypeId = 1;
                         break;
 
                     case "COSTOS":
 
-                        // Puede visualizar Bodegas
-                        // y Puntos de Venta.
+                        // Puede visualizar bodegas
+                        // y puntos de venta.
                         solutionCenterTypeId = null;
                         break;
 
                     case "CONTROL INTERNO":
 
-                        // Puede visualizar Bodegas
-                        // y Puntos de Venta.
+                        // Puede visualizar bodegas
+                        // y puntos de venta.
+                        solutionCenterTypeId = null;
+                        break;
+
+                    case "ADMINISTRADOR":
+
+                        // Puede visualizar bodegas
+                        // y puntos de venta.
                         solutionCenterTypeId = null;
                         break;
 
