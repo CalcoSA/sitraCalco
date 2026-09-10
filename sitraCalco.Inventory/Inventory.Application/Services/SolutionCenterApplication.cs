@@ -603,5 +603,76 @@ namespace Inventory.Application.Services
                 throw;
             }
         }
+        public async Task<bool> UpdateSolutionCenter(
+    long solutionCenterId,
+    UpdateSolutionCenterDto request)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                    return false;
+
+                if (request is null)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(
+                    request.SolutionCenterCode))
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(
+                    request.SolutionCenterName))
+                    return false;
+
+                // Validar que el registro exista.
+                var solutionCenterExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterExists(
+                            solutionCenterId);
+
+                if (!solutionCenterExists)
+                    return false;
+
+                // Normalizar código.
+                var code = request.SolutionCenterCode
+                    .Trim()
+                    .ToUpperInvariant();
+
+                // Normalizar nombre.
+                var name = request.SolutionCenterName
+                    .Trim();
+
+                // Validar que ningún OTRO centro
+                // tenga el mismo código.
+                var codeExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterCodeExists(
+                            code,
+                            solutionCenterId);
+
+                if (codeExists)
+                    return false;
+
+                // Validar que ningún OTRO centro
+                // tenga el mismo nombre.
+                var nameExists =
+                    await _solutionCenterRepository
+                        .SolutionCenterNameExists(
+                            name,
+                            solutionCenterId);
+
+                if (nameExists)
+                    return false;
+
+                return await _solutionCenterRepository
+                    .UpdateSolutionCenter(
+                        solutionCenterId,
+                        code,
+                        name);
+            }
+            catch
+            {
+                throw;
+            }
+        }
     }
 }

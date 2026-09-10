@@ -690,5 +690,51 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 throw;
             }
         }
+        public async Task<bool> SolutionCenterCodeExists(
+    string solutionCenterCode,
+    long excludeSolutionCenterId)
+        {
+            return await _context.SolutionCenters
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.solution_center_code == solutionCenterCode
+                    &&
+                    x.solution_center_id != excludeSolutionCenterId);
+        }
+        public async Task<bool> SolutionCenterNameExists(
+    string solutionCenterName,
+    long excludeSolutionCenterId)
+        {
+            return await _context.SolutionCenters
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.solution_center_name == solutionCenterName
+                    &&
+                    x.solution_center_id != excludeSolutionCenterId);
+        }
+        public async Task<bool> UpdateSolutionCenter(
+    long solutionCenterId,
+    string solutionCenterCode,
+    string solutionCenterName)
+        {
+            var solutionCenter =
+                await _context.SolutionCenters
+                    .FirstOrDefaultAsync(x =>
+                        x.solution_center_id ==
+                        solutionCenterId);
+
+            if (solutionCenter is null)
+                return false;
+
+            solutionCenter.solution_center_code =
+                solutionCenterCode;
+
+            solutionCenter.solution_center_name =
+                solutionCenterName;
+
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
     }
 }

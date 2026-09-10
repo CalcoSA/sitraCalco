@@ -9,11 +9,8 @@ namespace Inventory.Api.Controllers
     [Route("api/[controller]")]
     public class SolutionCenterController : ControllerBase
     {
-        private readonly ISolutionCenterApplication
-            _solutionCenterApplication;
-
-        private readonly ILogger<SolutionCenterController>
-            _logger;
+        private readonly ISolutionCenterApplication _solutionCenterApplication;
+        private readonly ILogger<SolutionCenterController> _logger;
 
         public SolutionCenterController(
             ISolutionCenterApplication solutionCenterApplication,
@@ -24,7 +21,7 @@ namespace Inventory.Api.Controllers
         }
 
         /// <summary>
-        /// Obtiene los tipos de centros de soluciones.
+        /// Obtiene los tipos de bodegas y puntos de venta.
         /// </summary>
         [HttpGet("types")]
         public async Task<IActionResult> GetSolutionCenterTypes()
@@ -42,7 +39,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "No hay tipos de centros de soluciones registrados.",
+                            "No hay tipos de bodegas y puntos de venta registrados.",
                         Result = types
                     });
                 }
@@ -51,7 +48,7 @@ namespace Inventory.Api.Controllers
                 {
                     IsSuccess = true,
                     Message =
-                        "Tipos de centros de soluciones consultados correctamente.",
+                        "Tipos de bodegas y puntos de venta consultados correctamente.",
                     Result = types
                 });
             }
@@ -59,35 +56,37 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al consultar los tipos de centros de soluciones.");
+                    "Error al consultar los tipos de bodegas y puntos de venta.");
 
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
                     Message =
-                        "Ocurrió un error al consultar los tipos de centros de soluciones.",
+                        "Ocurrió un error al consultar los tipos de bodegas y puntos de venta.",
                     Result = new { }
                 });
             }
         }
 
+        /// <summary>
+        /// Crea una nueva bodega.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateSolutionCenter(
-    [FromBody] CreateSolutionCenterDto request)
+            [FromBody] CreateSolutionCenterDto request)
         {
             try
             {
                 if (request is null ||
                     request.SolutionCenterTypeId <= 0 ||
-                    string.IsNullOrWhiteSpace(
-                        request.SolutionCenterCode) ||
-                    string.IsNullOrWhiteSpace(
-                        request.SolutionCenterName))
+                    string.IsNullOrWhiteSpace(request.SolutionCenterCode) ||
+                    string.IsNullOrWhiteSpace(request.SolutionCenterName))
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "La información del centro de soluciones no es válida.",
+                        Message =
+                            "La información de la bodega no es válida.",
                         Result = new { }
                     });
                 }
@@ -102,7 +101,8 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "No se pudo crear el centro de soluciones. Verifique el tipo y que el código no exista.",
+                            "No se pudo crear la bodega. " +
+                            "Verifique que el tipo sea válido y que el código o nombre no estén registrados.",
                         Result = new { }
                     });
                 }
@@ -111,11 +111,10 @@ namespace Inventory.Api.Controllers
                 {
                     IsSuccess = true,
                     Message =
-                        "Centro de soluciones creado correctamente.",
+                        "Bodega creada correctamente.",
                     Result = new
                     {
-                        SolutionCenterId =
-                            solutionCenterId
+                        SolutionCenterId = solutionCenterId
                     }
                 });
             }
@@ -123,22 +122,25 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al crear el centro de soluciones.");
+                    "Error al crear la bodega.");
 
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
                     Message =
-                        "Ocurrió un error al crear el centro de soluciones.",
+                        "Ocurrió un error al crear la bodega.",
                     Result = new { }
                 });
             }
         }
 
+        /// <summary>
+        /// Guarda la configuración de una sección de la bodega.
+        /// </summary>
         [HttpPost("{solutionCenterId:long}/sections")]
         public async Task<IActionResult> CreateSectionConfiguration(
-    long solutionCenterId,
-    [FromBody] CreateSectionConfigurationDto request)
+            long solutionCenterId,
+            [FromBody] CreateSectionConfigurationDto request)
         {
             try
             {
@@ -147,7 +149,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El identificador del centro de soluciones debe ser mayor a cero.",
+                        Message =
+                            "El identificador de la bodega debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -157,7 +160,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "La información de la sección no es válida.",
+                        Message =
+                            "La información de la sección no es válida.",
                         Result = new { }
                     });
                 }
@@ -175,8 +179,9 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "No se pudo guardar la configuración de la sección. " +
-                            "Verifique que el centro exista, que el nombre de la sección no esté repetido, " +
-                            "que los productos sean válidos y que no existan combinaciones repetidas de referencia y unidad de medida.",
+                            "Verifique que la bodega exista, que el nombre de la sección no esté repetido, " +
+                            "que los productos sean válidos y que no existan combinaciones repetidas " +
+                            "de nombre y unidad de medida.",
                         Result = new { }
                     });
                 }
@@ -184,7 +189,8 @@ namespace Inventory.Api.Controllers
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
-                    Message = "Configuración de la sección guardada correctamente.",
+                    Message =
+                        "Configuración de la sección guardada correctamente.",
                     Result = new
                     {
                         SectionId = sectionId
@@ -195,23 +201,27 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al guardar la configuración de la sección para el centro {SolutionCenterId}.",
+                    "Error al guardar la configuración de la sección para la bodega {SolutionCenterId}.",
                     solutionCenterId);
 
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
-                    Message = "Ocurrió un error al guardar la configuración de la sección.",
+                    Message =
+                        "Ocurrió un error al guardar la configuración de la sección.",
                     Result = new { }
                 });
             }
         }
 
+        /// <summary>
+        /// Obtiene el listado paginado de bodegas y puntos de venta según el rol.
+        /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetSolutionCenters(
-    [FromQuery] string role,
-    [FromQuery] int page = 1,
-    [FromQuery] int take = 10)
+            [FromQuery] string role,
+            [FromQuery] int page = 1,
+            [FromQuery] int take = 10)
         {
             try
             {
@@ -220,7 +230,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El rol es obligatorio.",
+                        Message =
+                            "El rol es obligatorio.",
                         Result = new { }
                     });
                 }
@@ -260,7 +271,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "No hay centros de soluciones disponibles para el rol.",
+                            "No hay bodegas o puntos de venta disponibles para el rol.",
                         Result = solutionCenters
                     });
                 }
@@ -269,7 +280,7 @@ namespace Inventory.Api.Controllers
                 {
                     IsSuccess = true,
                     Message =
-                        "Centros de soluciones consultados correctamente.",
+                        "Bodegas y puntos de venta consultados correctamente.",
                     Result = solutionCenters
                 });
             }
@@ -277,22 +288,25 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al consultar centros de soluciones para el rol {Role}.",
+                    "Error al consultar las bodegas y puntos de venta para el rol {Role}.",
                     role);
 
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
                     Message =
-                        "Ocurrió un error al consultar los centros de soluciones.",
+                        "Ocurrió un error al consultar las bodegas y puntos de venta.",
                     Result = new { }
                 });
             }
         }
 
+        /// <summary>
+        /// Obtiene el detalle de una bodega.
+        /// </summary>
         [HttpGet("{solutionCenterId:long}")]
         public async Task<IActionResult> GetSolutionCenterById(
-    long solutionCenterId)
+            long solutionCenterId)
         {
             try
             {
@@ -302,7 +316,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador del centro de soluciones debe ser mayor a cero.",
+                            "El identificador de la bodega debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -318,7 +332,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "El centro de soluciones no existe.",
+                            "La bodega no existe.",
                         Result = new { }
                     });
                 }
@@ -327,7 +341,7 @@ namespace Inventory.Api.Controllers
                 {
                     IsSuccess = true,
                     Message =
-                        "Centro de soluciones consultado correctamente.",
+                        "Bodega consultada correctamente.",
                     Result = solutionCenter
                 });
             }
@@ -335,24 +349,26 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al consultar el centro de soluciones {SolutionCenterId}.",
+                    "Error al consultar la bodega {SolutionCenterId}.",
                     solutionCenterId);
 
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
                     Message =
-                        "Ocurrió un error al consultar el centro de soluciones.",
+                        "Ocurrió un error al consultar la bodega.",
                     Result = new { }
                 });
             }
-
         }
 
+        /// <summary>
+        /// Actualiza el estado activo o inactivo de una bodega.
+        /// </summary>
         [HttpPatch("{solutionCenterId:long}/status")]
         public async Task<IActionResult> UpdateSolutionCenterStatus(
-    long solutionCenterId,
-    [FromBody] UpdateStatusDto request)
+            long solutionCenterId,
+            [FromBody] UpdateStatusDto request)
         {
             try
             {
@@ -362,7 +378,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador del centro de soluciones debe ser mayor a cero.",
+                            "El identificador de la bodega debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -390,7 +406,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "El centro de soluciones no existe o no se pudo actualizar.",
+                            "La bodega no existe o no se pudo actualizar.",
                         Result = new { }
                     });
                 }
@@ -400,15 +416,12 @@ namespace Inventory.Api.Controllers
                     IsSuccess = true,
                     Message =
                         request.IsActive
-                            ? "Centro de soluciones activado correctamente."
-                            : "Centro de soluciones inactivado correctamente.",
+                            ? "Bodega activada correctamente."
+                            : "Bodega inactivada correctamente.",
                     Result = new
                     {
-                        SolutionCenterId =
-                            solutionCenterId,
-
-                        IsActive =
-                            request.IsActive
+                        SolutionCenterId = solutionCenterId,
+                        IsActive = request.IsActive
                     }
                 });
             }
@@ -416,22 +429,26 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al actualizar el estado del centro de soluciones {SolutionCenterId}.",
+                    "Error al actualizar el estado de la bodega {SolutionCenterId}.",
                     solutionCenterId);
 
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
                     Message =
-                        "Ocurrió un error al actualizar el estado del centro de soluciones.",
+                        "Ocurrió un error al actualizar el estado de la bodega.",
                     Result = new { }
                 });
             }
         }
+
+        /// <summary>
+        /// Actualiza el estado activo o inactivo de una sección.
+        /// </summary>
         [HttpPatch("sections/{sectionId:long}/status")]
         public async Task<IActionResult> UpdateSectionStatus(
-    long sectionId,
-    [FromBody] UpdateStatusDto request)
+            long sectionId,
+            [FromBody] UpdateStatusDto request)
         {
             try
             {
@@ -504,6 +521,7 @@ namespace Inventory.Api.Controllers
                 });
             }
         }
+
         /// <summary>
         /// Agrega un producto a una sección en una posición determinada.
         /// Los productos ubicados desde esa posición en adelante
@@ -522,7 +540,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El identificador del centro de soluciones debe ser mayor a cero.",
+                        Message =
+                            "El identificador de la bodega debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -532,7 +551,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El identificador de la sección debe ser mayor a cero.",
+                        Message =
+                            "El identificador de la sección debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -542,7 +562,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "La información del producto no es válida.",
+                        Message =
+                            "La información del producto no es válida.",
                         Result = new { }
                     });
                 }
@@ -552,7 +573,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El identificador del producto debe ser mayor a cero.",
+                        Message =
+                            "El identificador del producto debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -562,7 +584,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "La posición debe ser mayor a cero.",
+                        Message =
+                            "La posición debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -572,7 +595,8 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El usuario que crea el registro es obligatorio.",
+                        Message =
+                            "El usuario que crea el registro es obligatorio.",
                         Result = new { }
                     });
                 }
@@ -591,7 +615,7 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "No se pudo agregar el producto a la sección. " +
-                            "Verifique que el centro, la sección y el producto existan, " +
+                            "Verifique que la bodega, la sección y el producto existan, " +
                             "que la posición sea válida y que no exista otro producto " +
                             "con el mismo nombre y unidad de medida dentro de la sección.",
                         Result = new { }
@@ -601,7 +625,8 @@ namespace Inventory.Api.Controllers
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
-                    Message = "Producto agregado a la sección correctamente.",
+                    Message =
+                        "Producto agregado a la sección correctamente.",
                     Result = new
                     {
                         SolutionCenterProductId = solutionCenterProductId,
@@ -616,7 +641,7 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al agregar el producto {ProductId} a la sección {SectionId} del centro {SolutionCenterId}.",
+                    "Error al agregar el producto {ProductId} a la sección {SectionId} de la bodega {SolutionCenterId}.",
                     request?.ProductId,
                     sectionId,
                     solutionCenterId);
@@ -624,11 +649,13 @@ namespace Inventory.Api.Controllers
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
-                    Message = "Ocurrió un error al agregar el producto a la sección.",
+                    Message =
+                        "Ocurrió un error al agregar el producto a la sección.",
                     Result = new { }
                 });
             }
         }
+
         /// <summary>
         /// Intercambia la posición de un producto con el producto
         /// que actualmente ocupa la nueva posición.
@@ -649,7 +676,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador del centro de soluciones debe ser mayor a cero.",
+                            "El identificador de la bodega debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -703,7 +730,7 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "No se pudo actualizar el orden. " +
-                            "Verifique que el centro, la sección, el producto asociado " +
+                            "Verifique que la bodega, la sección, el producto asociado " +
                             "y la posición solicitada existan.",
                         Result = new { }
                     });
@@ -728,9 +755,11 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al cambiar el orden del producto asociado {SolutionCenterProductId} en la sección {SectionId}.",
+                    "Error al cambiar el orden del producto asociado {SolutionCenterProductId} " +
+                    "en la sección {SectionId} de la bodega {SolutionCenterId}.",
                     solutionCenterProductId,
-                    sectionId);
+                    sectionId,
+                    solutionCenterId);
 
                 return StatusCode(500, new ResponseApi
                 {
@@ -741,6 +770,7 @@ namespace Inventory.Api.Controllers
                 });
             }
         }
+
         /// <summary>
         /// Elimina un producto de una sección y reorganiza
         /// automáticamente las posiciones posteriores.
@@ -760,7 +790,7 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador del centro de soluciones debe ser mayor a cero.",
+                            "El identificador de la bodega debe ser mayor a cero.",
                         Result = new { }
                     });
                 }
@@ -830,7 +860,7 @@ namespace Inventory.Api.Controllers
                 _logger.LogError(
                     ex,
                     "Error al eliminar el producto asociado {SolutionCenterProductId} " +
-                    "de la sección {SectionId} del centro {SolutionCenterId}.",
+                    "de la sección {SectionId} de la bodega {SolutionCenterId}.",
                     solutionCenterProductId,
                     sectionId,
                     solutionCenterId);
@@ -840,6 +870,109 @@ namespace Inventory.Api.Controllers
                     IsSuccess = false,
                     Message =
                         "Ocurrió un error al eliminar el producto de la sección.",
+                    Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Actualiza el código y el nombre de una bodega.
+        /// </summary>
+        [HttpPatch("{solutionCenterId:long}")]
+        public async Task<IActionResult> UpdateSolutionCenter(
+            long solutionCenterId,
+            [FromBody] UpdateSolutionCenterDto request)
+        {
+            try
+            {
+                if (solutionCenterId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El identificador de la bodega debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (request is null)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "La información enviada no es válida.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(
+                        request.SolutionCenterCode) ||
+                    string.IsNullOrWhiteSpace(
+                        request.SolutionCenterName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El código y el nombre son obligatorios.",
+                        Result = new { }
+                    });
+                }
+
+                var updated =
+                    await _solutionCenterApplication
+                        .UpdateSolutionCenter(
+                            solutionCenterId,
+                            request);
+
+                if (!updated)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "No se pudo actualizar la bodega. " +
+                            "Verifique que exista y que el código o nombre " +
+                            "no estén registrados.",
+                        Result = new { }
+                    });
+                }
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message =
+                        "Bodega actualizada correctamente.",
+                    Result = new
+                    {
+                        SolutionCenterId =
+                            solutionCenterId,
+
+                        SolutionCenterCode =
+                            request.SolutionCenterCode
+                                .Trim()
+                                .ToUpperInvariant(),
+
+                        SolutionCenterName =
+                            request.SolutionCenterName
+                                .Trim()
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Error al actualizar la bodega {SolutionCenterId}.",
+                    solutionCenterId);
+
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message =
+                        "Ocurrió un error al actualizar la bodega.",
                     Result = new { }
                 });
             }

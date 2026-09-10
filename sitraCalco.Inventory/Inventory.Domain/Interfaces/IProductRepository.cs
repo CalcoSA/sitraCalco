@@ -5,7 +5,7 @@ namespace Inventory.Domain.Interfaces
 {
     public interface IProductRepository : IRepository<Product>
     {
-        Task<int> UpsertRange(IEnumerable<Product> products);
+        Task<ProductSyncResultDto> UpsertRange(IEnumerable<Product> products);
 
         Task<PagedDto<Product>> GetPaged(int page,int take,string? search = null);
 

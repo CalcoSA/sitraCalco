@@ -38,5 +38,10 @@ namespace Inventory.Domain.Interfaces
         Task<bool> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
 
         Task<bool> DeleteProductFromSection(long solutionCenterId,long sectionId,long solutionCenterProductId);
+
+        Task<bool> SolutionCenterCodeExists(string solutionCenterCode,long excludeSolutionCenterId);
+
+        Task<bool> SolutionCenterNameExists(string solutionCenterName,long excludeSolutionCenterId);
+        Task<bool> UpdateSolutionCenter(long solutionCenterId,string solutionCenterCode,string solutionCenterName);
     }
 }

@@ -24,5 +24,6 @@ namespace Inventory.Application.Interfaces
         Task<bool> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
 
         Task<bool> DeleteProductFromSection(long solutionCenterId,long sectionId,long solutionCenterProductId);
+        Task<bool> UpdateSolutionCenter(long solutionCenterId,UpdateSolutionCenterDto request);
     }
 }
