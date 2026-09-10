@@ -20,7 +20,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         /// La llave lógica actual corresponde a:
         /// reference + unit_of_measure + plan_id.
         /// </summary>
-        public async Task<int> UpsertRange(IEnumerable<Product> products)
+        public async Task<ProductSyncResultDto> UpsertRange(
+    IEnumerable<Product> products)
         {
             var productsToProcess = products
                 .Where(product =>
@@ -36,8 +37,13 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .Select(group => group.First())
                 .ToList();
 
+            var result = new ProductSyncResultDto
+            {
+                Processed = productsToProcess.Count
+            };
+
             if (productsToProcess.Count == 0)
-                return 0;
+                return result;
 
             var references = productsToProcess
                 .Select(product => product.reference.Trim())
@@ -68,7 +74,20 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     key,
                     out var existingProduct))
                 {
-                    existingProduct.product_name = product.product_name;
+                    var newName = product.product_name.Trim();
+
+                    if (!string.Equals(
+                        existingProduct.product_name?.Trim(),
+                        newName,
+                        StringComparison.Ordinal))
+                    {
+                        existingProduct.product_name = newName;
+                        result.Updated++;
+                    }
+                    else
+                    {
+                        result.Unchanged++;
+                    }
                 }
                 else
                 {
@@ -84,12 +103,14 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     await _context.Products.AddAsync(newProduct);
 
                     existingProductsDictionary[key] = newProduct;
+
+                    result.Created++;
                 }
             }
 
             await _context.SaveChangesAsync();
 
-            return productsToProcess.Count;
+            return result;
         }
 
         /// <summary>

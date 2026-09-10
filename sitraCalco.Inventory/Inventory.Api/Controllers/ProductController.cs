@@ -28,19 +28,16 @@ namespace Inventory.Api.Controllers
         {
             try
             {
-                var processedProducts =
+                var syncResult =
                     await _productApplication.SyncProducts();
 
-                if (processedProducts <= 0)
+                if (syncResult.Processed <= 0)
                 {
                     return Ok(new ResponseApi
                     {
                         IsSuccess = false,
                         Message = "No se encontraron productos válidos para sincronizar.",
-                        Result = new
-                        {
-                            Processed = processedProducts
-                        }
+                        Result = syncResult
                     });
                 }
 
@@ -48,10 +45,7 @@ namespace Inventory.Api.Controllers
                 {
                     IsSuccess = true,
                     Message = "Productos sincronizados correctamente.",
-                    Result = new
-                    {
-                        Processed = processedProducts
-                    }
+                    Result = syncResult
                 });
             }
             catch (Exception ex)

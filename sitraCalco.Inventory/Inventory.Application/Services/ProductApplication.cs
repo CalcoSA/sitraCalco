@@ -25,11 +25,12 @@ namespace Inventory.Application.Services
         /// <returns>
         /// Type: int - Cantidad de registros procesados.
         /// </returns>
-        public async Task<int> SyncProducts()
+        public async Task<ProductSyncResultDto> SyncProducts()
         {
             try
             {
-                var siesaProducts = await _siesaRepository.GetProducts();
+                var siesaProducts =
+                    await _siesaRepository.GetProducts();
 
                 var products = siesaProducts
                     .Where(product =>
@@ -38,13 +39,8 @@ namespace Inventory.Application.Services
                         !string.IsNullOrWhiteSpace(product.plan_id))
                     .ToList();
 
-                if (!products.Any())
-                    return 0;
-
-                var processedProducts =
-                    await _productRepository.UpsertRange(products);
-
-                return processedProducts;
+                return await _productRepository
+                    .UpsertRange(products);
             }
             catch
             {
