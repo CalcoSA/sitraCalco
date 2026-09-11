@@ -10,13 +10,16 @@ namespace Inventory.Api.Controllers
     public class SolutionCenterController : ControllerBase
     {
         private readonly ISolutionCenterApplication _solutionCenterApplication;
+        private readonly ILogApplication _logApplication;
         private readonly ILogger<SolutionCenterController> _logger;
 
         public SolutionCenterController(
             ISolutionCenterApplication solutionCenterApplication,
+            ILogApplication logApplication,
             ILogger<SolutionCenterController> logger)
         {
             _solutionCenterApplication = solutionCenterApplication;
+            _logApplication = logApplication;
             _logger = logger;
         }
 
@@ -73,7 +76,8 @@ namespace Inventory.Api.Controllers
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateSolutionCenter(
-            [FromBody] CreateSolutionCenterDto request)
+            [FromBody] CreateSolutionCenterDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
@@ -87,6 +91,17 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "La información de la bodega no es válida.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
                         Result = new { }
                     });
                 }
@@ -106,6 +121,17 @@ namespace Inventory.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Crear",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            $"Se creó la bodega {request.SolutionCenterName.Trim()} " +
+                            $"con código {request.SolutionCenterCode.Trim().ToUpperInvariant()}.",
+                        UserName = userName.Trim()
+                    });
 
                 return Ok(new ResponseApi
                 {
@@ -140,7 +166,8 @@ namespace Inventory.Api.Controllers
         [HttpPost("{solutionCenterId:long}/sections")]
         public async Task<IActionResult> CreateSectionConfiguration(
             long solutionCenterId,
-            [FromBody] CreateSectionConfigurationDto request)
+            [FromBody] CreateSectionConfigurationDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
@@ -166,11 +193,23 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
+                        Result = new { }
+                    });
+                }
+
                 var sectionId =
                     await _solutionCenterApplication
                         .CreateSectionConfiguration(
                             solutionCenterId,
-                            request);
+                            request,
+                            userName);
 
                 if (sectionId <= 0)
                 {
@@ -185,6 +224,22 @@ namespace Inventory.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                var solutionCenter =
+                    await _solutionCenterApplication
+                        .GetSolutionCenterById(solutionCenterId);
+
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Crear",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            $"Se creó la sección {request.SectionName.Trim()} " +
+                            $"en la bodega " +
+                            $"{solutionCenter?.SolutionCenterName ?? solutionCenterId.ToString()}.",
+                        UserName = userName.Trim()
+                    });
 
                 return Ok(new ResponseApi
                 {
@@ -368,7 +423,8 @@ namespace Inventory.Api.Controllers
         [HttpPatch("{solutionCenterId:long}/status")]
         public async Task<IActionResult> UpdateSolutionCenterStatus(
             long solutionCenterId,
-            [FromBody] UpdateStatusDto request)
+            [FromBody] UpdateStatusDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
@@ -394,6 +450,33 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
+                        Result = new { }
+                    });
+                }
+
+                var solutionCenter =
+                    await _solutionCenterApplication
+                        .GetSolutionCenterById(
+                            solutionCenterId);
+
+                if (solutionCenter is null)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "La bodega no existe.",
+                        Result = new { }
+                    });
+                }
+
                 var updated =
                     await _solutionCenterApplication
                         .UpdateSolutionCenterStatus(
@@ -410,6 +493,20 @@ namespace Inventory.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Actualizar",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            request.IsActive
+                                ? $"Se activó la bodega {solutionCenter.SolutionCenterName} " +
+                                  $"con código {solutionCenter.SolutionCenterCode}."
+                                : $"Se inactivó la bodega {solutionCenter.SolutionCenterName} " +
+                                  $"con código {solutionCenter.SolutionCenterCode}.",
+                        UserName = userName.Trim()
+                    });
 
                 return Ok(new ResponseApi
                 {
@@ -448,7 +545,8 @@ namespace Inventory.Api.Controllers
         [HttpPatch("sections/{sectionId:long}/status")]
         public async Task<IActionResult> UpdateSectionStatus(
             long sectionId,
-            [FromBody] UpdateStatusDto request)
+            [FromBody] UpdateStatusDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
@@ -474,6 +572,17 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
+                        Result = new { }
+                    });
+                }
+
                 var updated =
                     await _solutionCenterApplication
                         .UpdateSectionStatus(
@@ -490,6 +599,18 @@ namespace Inventory.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Actualizar",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            request.IsActive
+                                ? $"Se activó la sección con ID {sectionId}."
+                                : $"Se inactivó la sección con ID {sectionId}.",
+                        UserName = userName.Trim()
+                    });
 
                 return Ok(new ResponseApi
                 {
@@ -524,14 +645,13 @@ namespace Inventory.Api.Controllers
 
         /// <summary>
         /// Agrega un producto a una sección en una posición determinada.
-        /// Los productos ubicados desde esa posición en adelante
-        /// se desplazan una posición.
         /// </summary>
         [HttpPost("{solutionCenterId:long}/sections/{sectionId:long}/products")]
         public async Task<IActionResult> AddProductToSection(
             long solutionCenterId,
             long sectionId,
-            [FromBody] AddSectionProductDto request)
+            [FromBody] AddSectionProductDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
@@ -590,16 +710,20 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                if (string.IsNullOrWhiteSpace(request.CreatedBy))
+                if (string.IsNullOrWhiteSpace(userName))
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que crea el registro es obligatorio.",
+                            "El usuario que ejecuta la operación es obligatorio.",
                         Result = new { }
                     });
                 }
+
+                // Mientras AddSectionProductDto conserve CreatedBy,
+                // la fuente real será X-User.
+                request.CreatedBy = userName.Trim();
 
                 var solutionCenterProductId =
                     await _solutionCenterApplication
@@ -621,6 +745,18 @@ namespace Inventory.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Crear",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            $"Se agregó el producto con ID {request.ProductId} " +
+                            $"a la sección con ID {sectionId} " +
+                            $"en la posición {request.Position}.",
+                        UserName = userName.Trim()
+                    });
 
                 return Ok(new ResponseApi
                 {
@@ -666,39 +802,20 @@ namespace Inventory.Api.Controllers
             long solutionCenterId,
             long sectionId,
             long solutionCenterProductId,
-            [FromBody] UpdateProductOrderDto request)
+            [FromBody] UpdateProductOrderDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
-                if (solutionCenterId <= 0)
+                if (solutionCenterId <= 0 ||
+                    sectionId <= 0 ||
+                    solutionCenterProductId <= 0)
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador de la bodega debe ser mayor a cero.",
-                        Result = new { }
-                    });
-                }
-
-                if (sectionId <= 0)
-                {
-                    return BadRequest(new ResponseApi
-                    {
-                        IsSuccess = false,
-                        Message =
-                            "El identificador de la sección debe ser mayor a cero.",
-                        Result = new { }
-                    });
-                }
-
-                if (solutionCenterProductId <= 0)
-                {
-                    return BadRequest(new ResponseApi
-                    {
-                        IsSuccess = false,
-                        Message =
-                            "El identificador del producto asociado debe ser mayor a cero.",
+                            "Los identificadores enviados no son válidos.",
                         Result = new { }
                     });
                 }
@@ -711,6 +828,17 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "La nueva posición debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
                         Result = new { }
                     });
                 }
@@ -736,6 +864,19 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Actualizar",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            $"Se cambió el orden del producto asociado " +
+                            $"con ID {solutionCenterProductId} " +
+                            $"en la sección con ID {sectionId} " +
+                            $"a la posición {request.NewPosition}.",
+                        UserName = userName.Trim()
+                    });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -745,7 +886,6 @@ namespace Inventory.Api.Controllers
                     {
                         SolutionCenterProductId =
                             solutionCenterProductId,
-
                         NewPosition =
                             request.NewPosition
                     }
@@ -755,11 +895,8 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al cambiar el orden del producto asociado {SolutionCenterProductId} " +
-                    "en la sección {SectionId} de la bodega {SolutionCenterId}.",
-                    solutionCenterProductId,
-                    sectionId,
-                    solutionCenterId);
+                    "Error al cambiar el orden del producto asociado {SolutionCenterProductId}.",
+                    solutionCenterProductId);
 
                 return StatusCode(500, new ResponseApi
                 {
@@ -780,39 +917,31 @@ namespace Inventory.Api.Controllers
         public async Task<IActionResult> DeleteProductFromSection(
             long solutionCenterId,
             long sectionId,
-            long solutionCenterProductId)
+            long solutionCenterProductId,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
-                if (solutionCenterId <= 0)
+                if (solutionCenterId <= 0 ||
+                    sectionId <= 0 ||
+                    solutionCenterProductId <= 0)
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador de la bodega debe ser mayor a cero.",
+                            "Los identificadores enviados no son válidos.",
                         Result = new { }
                     });
                 }
 
-                if (sectionId <= 0)
+                if (string.IsNullOrWhiteSpace(userName))
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El identificador de la sección debe ser mayor a cero.",
-                        Result = new { }
-                    });
-                }
-
-                if (solutionCenterProductId <= 0)
-                {
-                    return BadRequest(new ResponseApi
-                    {
-                        IsSuccess = false,
-                        Message =
-                            "El identificador del producto asociado debe ser mayor a cero.",
+                            "El usuario que ejecuta la operación es obligatorio.",
                         Result = new { }
                     });
                 }
@@ -837,6 +966,18 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Eliminar",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            $"Se eliminó el producto asociado con ID " +
+                            $"{solutionCenterProductId} " +
+                            $"de la sección con ID {sectionId}.",
+                        UserName = userName.Trim()
+                    });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -846,10 +987,8 @@ namespace Inventory.Api.Controllers
                     {
                         SolutionCenterProductId =
                             solutionCenterProductId,
-
                         SolutionCenterId =
                             solutionCenterId,
-
                         SectionId =
                             sectionId
                     }
@@ -859,11 +998,8 @@ namespace Inventory.Api.Controllers
             {
                 _logger.LogError(
                     ex,
-                    "Error al eliminar el producto asociado {SolutionCenterProductId} " +
-                    "de la sección {SectionId} de la bodega {SolutionCenterId}.",
-                    solutionCenterProductId,
-                    sectionId,
-                    solutionCenterId);
+                    "Error al eliminar el producto asociado {SolutionCenterProductId}.",
+                    solutionCenterProductId);
 
                 return StatusCode(500, new ResponseApi
                 {
@@ -881,7 +1017,8 @@ namespace Inventory.Api.Controllers
         [HttpPatch("{solutionCenterId:long}")]
         public async Task<IActionResult> UpdateSolutionCenter(
             long solutionCenterId,
-            [FromBody] UpdateSolutionCenterDto request)
+            [FromBody] UpdateSolutionCenterDto request,
+            [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
@@ -921,6 +1058,33 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
+                        Result = new { }
+                    });
+                }
+
+                var currentSolutionCenter =
+                    await _solutionCenterApplication
+                        .GetSolutionCenterById(
+                            solutionCenterId);
+
+                if (currentSolutionCenter is null)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "La bodega no existe.",
+                        Result = new { }
+                    });
+                }
+
                 var updated =
                     await _solutionCenterApplication
                         .UpdateSolutionCenter(
@@ -940,6 +1104,53 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
+                var newCode =
+                    request.SolutionCenterCode
+                        .Trim()
+                        .ToUpperInvariant();
+
+                var newName =
+                    request.SolutionCenterName
+                        .Trim();
+
+                var changes = new List<string>();
+
+                if (!string.Equals(
+                    currentSolutionCenter.SolutionCenterCode,
+                    newCode,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    changes.Add(
+                        $"código de {currentSolutionCenter.SolutionCenterCode} " +
+                        $"a {newCode}");
+                }
+
+                if (!string.Equals(
+                    currentSolutionCenter.SolutionCenterName,
+                    newName,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    changes.Add(
+                        $"nombre de {currentSolutionCenter.SolutionCenterName} " +
+                        $"a {newName}");
+                }
+
+                var changeDescription =
+                    changes.Any()
+                        ? string.Join(" y ", changes)
+                        : "sin cambios en nombre o código";
+
+                await _logApplication.CreateLog(
+                    new CreateLogDto
+                    {
+                        Action = "Actualizar",
+                        Module = "ConfiguracionBodegas",
+                        Description =
+                            $"Se actualizó la bodega {newName}: " +
+                            $"{changeDescription}.",
+                        UserName = userName.Trim()
+                    });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -949,15 +1160,10 @@ namespace Inventory.Api.Controllers
                     {
                         SolutionCenterId =
                             solutionCenterId,
-
                         SolutionCenterCode =
-                            request.SolutionCenterCode
-                                .Trim()
-                                .ToUpperInvariant(),
-
+                            newCode,
                         SolutionCenterName =
-                            request.SolutionCenterName
-                                .Trim()
+                            newName
                     }
                 });
             }

@@ -77,12 +77,29 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     var newName = product.product_name.Trim();
 
                     if (!string.Equals(
-                        existingProduct.product_name?.Trim(),
-                        newName,
-                        StringComparison.Ordinal))
+    existingProduct.product_name?.Trim(),
+    newName,
+    StringComparison.Ordinal))
                     {
                         existingProduct.product_name = newName;
+
                         result.Updated++;
+
+                        result.UpdatedProducts.Add(
+                            new ProductSyncItemDto
+                            {
+                                ProductName =
+                                    existingProduct.product_name,
+
+                                Reference =
+                                    existingProduct.reference,
+
+                                UnitOfMeasure =
+                                    existingProduct.unit_of_measure,
+
+                                PlanId =
+                                    existingProduct.plan_id
+                            });
                     }
                     else
                     {
@@ -105,6 +122,22 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     existingProductsDictionary[key] = newProduct;
 
                     result.Created++;
+
+                    result.CreatedProducts.Add(
+                        new ProductSyncItemDto
+                        {
+                            ProductName =
+                                newProduct.product_name,
+
+                            Reference =
+                                newProduct.reference,
+
+                            UnitOfMeasure =
+                                newProduct.unit_of_measure,
+
+                            PlanId =
+                                newProduct.plan_id
+                        });
                 }
             }
 

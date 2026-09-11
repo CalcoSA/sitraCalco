@@ -13,6 +13,7 @@ namespace Inventory.Application
         {
             services.AddScoped<IProductApplication, ProductApplication>();
             services.AddScoped<ISolutionCenterApplication,SolutionCenterApplication>();
+            services.AddScoped<ILogApplication,LogApplication>();
 
             //services.AddScoped<IValidator<CreateRoleDto>, CreateRoleDtoValidator>();
 

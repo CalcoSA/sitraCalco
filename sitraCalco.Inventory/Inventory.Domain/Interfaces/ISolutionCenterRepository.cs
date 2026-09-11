@@ -15,7 +15,7 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> SolutionCenterExists(long solutionCenterId);
 
-        Task<long> CreateSectionConfiguration(long solutionCenterId,Section section,IEnumerable<SectionProductDto> products,string createdBy);
+        Task<long> CreateSectionConfiguration(long solutionCenterId,Section section,List<SectionProductDto> products,string createdBy);
 
         Task<bool> SolutionCenterNameExists(string solutionCenterName);
 

@@ -121,7 +121,8 @@ namespace Inventory.Application.Services
 
         public async Task<long> CreateSectionConfiguration(
     long solutionCenterId,
-    CreateSectionConfigurationDto request)
+    CreateSectionConfigurationDto request,
+    string userName)
         {
             try
             {
@@ -135,8 +136,7 @@ namespace Inventory.Application.Services
                     request.SectionName))
                     return 0;
 
-                if (string.IsNullOrWhiteSpace(
-                    request.CreatedBy))
+                if (string.IsNullOrWhiteSpace(userName))
                     return 0;
 
                 if (request.Products is null ||
@@ -252,7 +252,7 @@ namespace Inventory.Application.Services
                         solutionCenterId,
                         section,
                         request.Products,
-                        request.CreatedBy.Trim());
+                        userName.Trim());
             }
             catch
             {

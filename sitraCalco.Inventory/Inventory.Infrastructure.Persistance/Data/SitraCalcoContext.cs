@@ -18,6 +18,7 @@ namespace Inventory.Infrastructure.Persistance.Data
         public virtual DbSet<Section>Sections { get; set; }
 
         public virtual DbSet<SolutionCenterProduct> SolutionCenterProducts { get; set; }
+        public virtual DbSet<InventoryLog> InventoryLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

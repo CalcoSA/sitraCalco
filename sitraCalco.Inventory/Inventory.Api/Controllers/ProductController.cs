@@ -1,6 +1,7 @@
 ﻿using Inventory.Application.Interfaces;
 using Inventory.Domain.Responses;
 using Microsoft.AspNetCore.Mvc;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Api.Controllers
 {
@@ -11,11 +12,15 @@ namespace Inventory.Api.Controllers
         private readonly IProductApplication _productApplication;
         private readonly ILogger<ProductController> _logger;
 
+        private readonly ILogApplication _logApplication;
+
         public ProductController(
             IProductApplication productApplication,
+            ILogApplication logApplication,
             ILogger<ProductController> logger)
         {
             _productApplication = productApplication;
+            _logApplication = logApplication;
             _logger = logger;
         }
 
@@ -24,10 +29,22 @@ namespace Inventory.Api.Controllers
         /// y crea o actualiza los productos en SITRA.
         /// </summary>
         [HttpPost("sync")]
-        public async Task<IActionResult> SyncProducts()
+        public async Task<IActionResult> SyncProducts(
+    [FromHeader(Name = "X-User")] string userName)
         {
             try
             {
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message =
+                            "El usuario que ejecuta la operación es obligatorio.",
+                        Result = new { }
+                    });
+                }
+
                 var syncResult =
                     await _productApplication.SyncProducts();
 
@@ -36,15 +53,67 @@ namespace Inventory.Api.Controllers
                     return Ok(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "No se encontraron productos válidos para sincronizar.",
+                        Message =
+                            "No se encontraron productos válidos para sincronizar.",
                         Result = syncResult
                     });
+                }
+
+                await _logApplication.CreateLog(
+    new CreateLogDto
+    {
+        Action = "Sincronizar",
+        Module = "Productos",
+        Description =
+            $"Sincronización de productos finalizada. " +
+            $"Procesados: {syncResult.Processed}, " +
+            $"nuevos: {syncResult.Created}, " +
+            $"actualizados: {syncResult.Updated}, " +
+            $"sin cambios: {syncResult.Unchanged}.",
+        UserName = userName.Trim()
+    });
+
+                foreach (var product in syncResult.CreatedProducts)
+                {
+                    await _logApplication.CreateLog(
+                        new CreateLogDto
+                        {
+                            Action = "Crear",
+                            Module = "Productos",
+                            Description =
+                                $"Se creó el producto {product.ProductName}, " +
+                                $"referencia {product.Reference}, " +
+                                $"unidad de medida {product.UnitOfMeasure}" +
+                                $"{(string.IsNullOrWhiteSpace(product.PlanId)
+                                    ? "."
+                                    : $", plan {product.PlanId}.")}",
+                            UserName = userName.Trim()
+                        });
+                }
+
+                foreach (var product in syncResult.UpdatedProducts)
+                {
+                    await _logApplication.CreateLog(
+                        new CreateLogDto
+                        {
+                            Action = "Actualizar",
+                            Module = "Productos",
+                            Description =
+                                $"Se actualizó el producto {product.ProductName}, " +
+                                $"referencia {product.Reference}, " +
+                                $"unidad de medida {product.UnitOfMeasure}" +
+                                $"{(string.IsNullOrWhiteSpace(product.PlanId)
+                                    ? "."
+                                    : $", plan {product.PlanId}.")}",
+                            UserName = userName.Trim()
+                        });
                 }
 
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
-                    Message = "Productos sincronizados correctamente.",
+                    Message =
+                        "Productos sincronizados correctamente.",
                     Result = syncResult
                 });
             }
@@ -57,7 +126,8 @@ namespace Inventory.Api.Controllers
                 return StatusCode(500, new ResponseApi
                 {
                     IsSuccess = false,
-                    Message = "Ocurrió un error al sincronizar los productos desde SIESA.",
+                    Message =
+                        "Ocurrió un error al sincronizar los productos desde SIESA.",
                     Result = new { }
                 });
             }
