@@ -9,7 +9,7 @@ namespace Inventory.Application.Interfaces
 
         Task<long> CreateSolutionCenter(CreateSolutionCenterDto request);
 
-        Task<long> CreateSectionConfiguration(long solutionCenterId,CreateSectionConfigurationDto request);
+        Task<long> CreateSectionConfiguration(long solutionCenterId,CreateSectionConfigurationDto request,string userName);
 
         Task<PagedDto<SolutionCenterListDto>?> GetPagedSolutionCenters(string role,int page,int take);
 

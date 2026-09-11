@@ -9,5 +9,11 @@
         public int Updated { get; set; }
 
         public int Unchanged { get; set; }
+
+        public List<ProductSyncItemDto> CreatedProducts { get; set; }
+            = new List<ProductSyncItemDto>();
+
+        public List<ProductSyncItemDto> UpdatedProducts { get; set; }
+            = new List<ProductSyncItemDto>();
     }
 }

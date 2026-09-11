@@ -62,7 +62,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     x.solution_center_id == solutionCenterId);
         }
 
-        public async Task<long> CreateSectionConfiguration(long solutionCenterId,Section section,IEnumerable<SectionProductDto> products,string createdBy)
+        public async Task<long> CreateSectionConfiguration(long solutionCenterId,Section section,List<SectionProductDto> products, string createdBy)
         {
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
