@@ -155,13 +155,13 @@ namespace Inventory.Application.Services
                 var sectionName =
                     request.SectionName.Trim();
 
-                // No permitir dos secciones con el mismo
-                // nombre dentro del mismo centro.
                 var sectionNameExists =
                     await _solutionCenterRepository
                         .SectionNameExists(
-                            solutionCenterId,
                             sectionName);
+
+                if (sectionNameExists)
+                    return 0;
 
                 if (sectionNameExists)
                     return 0;

@@ -43,5 +43,6 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> SolutionCenterNameExists(string solutionCenterName,long excludeSolutionCenterId);
         Task<bool> UpdateSolutionCenter(long solutionCenterId,string solutionCenterCode,string solutionCenterName);
+        Task<bool> SectionNameExists(string sectionName);
     }
 }

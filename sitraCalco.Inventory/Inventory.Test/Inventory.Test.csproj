@@ -22,8 +22,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Inventory.Api\Inventory.Api.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Inventory.Api\Inventory.Api.csproj" />
+		<ProjectReference Include="..\Inventory.Application\Inventory.Application.csproj" />
+		<ProjectReference Include="..\Inventory.Domain\Inventory.Domain.csproj" />
+	</ItemGroup>
 
 </Project>

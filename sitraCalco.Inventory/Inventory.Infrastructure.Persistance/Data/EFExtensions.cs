@@ -34,7 +34,8 @@ namespace Inventory.Infrastructure.Persistance.Data
             services.AddScoped<ISiesaRepository, SiesaRepository>();
             services.AddScoped<ISolutionCenterRepository,SolutionCenterRepository>();
             services.AddScoped<ILogRepository, LogRepository>();
-
+            services.AddScoped<ISectionRepository, SectionRepository>();
+            services.AddScoped<IInventoryConfigurationRepository,InventoryConfigurationRepository>();
 
             return services;
         }
