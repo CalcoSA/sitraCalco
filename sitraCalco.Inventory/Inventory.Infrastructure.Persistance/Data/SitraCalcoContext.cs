@@ -19,6 +19,11 @@ namespace Inventory.Infrastructure.Persistance.Data
 
         public virtual DbSet<SolutionCenterProduct> SolutionCenterProducts { get; set; }
         public virtual DbSet<InventoryLog> InventoryLogs { get; set; }
+        public virtual DbSet<InventoryConfigurationAssignment>InventoryConfigurationAssignments{ get; set; }
+
+        public virtual DbSet<InventoryConfiguration>InventoryConfigurations{ get; set; }
+
+        public virtual DbSet<InventoryConfigurationDay>InventoryConfigurationDays{ get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

@@ -736,5 +736,17 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             return true;
         }
+        public async Task<bool> SectionNameExists(
+    string sectionName)
+        {
+            var normalizedName =
+                sectionName.Trim().ToUpper();
+
+            return await _context.Sections
+                .AsNoTracking()
+                .AnyAsync(section =>
+                    section.section_name.ToUpper() ==
+                    normalizedName);
+        }
     }
 }
