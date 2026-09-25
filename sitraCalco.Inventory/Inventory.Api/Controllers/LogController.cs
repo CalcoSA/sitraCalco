@@ -1,11 +1,13 @@
 ﻿using Inventory.Application.Interfaces;
 using Inventory.Domain.Responses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Inventory.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class LogController : ControllerBase
     {
         private readonly ILogApplication _logApplication;

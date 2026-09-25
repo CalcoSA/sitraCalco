@@ -1,12 +1,14 @@
 ﻿using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Inventory.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class SolutionCenterController : ControllerBase
     {
         private readonly ISolutionCenterApplication _solutionCenterApplication;
