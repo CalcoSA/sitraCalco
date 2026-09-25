@@ -1,13 +1,15 @@
 ﻿using Authentication.Application.Interfaces;
-using Authentication.Domain.Responses;
 using Authentication.Domain.Dtos;
-using Microsoft.AspNetCore.Mvc;
+using Authentication.Domain.Responses;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Authentication.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class RoleController : ControllerBase
     {
         private readonly IValidator<CreateRoleDto> _createRoleValidator;
