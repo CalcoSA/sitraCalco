@@ -1,5 +1,6 @@
 ﻿using Authentication.Application.Interfaces;
 using Authentication.Domain.Dtos;
+using Authentication.Api.Extensions;
 using Authentication.Domain.Responses;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -15,16 +16,19 @@ namespace Authentication.Api.Controllers
         private readonly IValidator<CreateUserDto> _createUserValidator;
         private readonly IValidator<UpdateUserDto> _updateUserValidator;
         private readonly IUserApplication _userApplication;
+        private readonly ILogApplication _logApplication;
         private readonly ILogger<UserController> _logger;
 
         public UserController(IValidator<CreateUserDto> createUserValidator,
             IValidator<UpdateUserDto> updateUserValidator,
             IUserApplication userApplication,
+            ILogApplication logApplication,
             ILogger<UserController> logger)
         {
             _createUserValidator = createUserValidator;
             _updateUserValidator = updateUserValidator;
-            _userApplication = userApplication;            
+            _userApplication = userApplication;
+            _logApplication = logApplication;
             _logger = logger;
         }
 
@@ -133,8 +137,20 @@ namespace Authentication.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateUserDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+                }
+
                 var validation = await _createUserValidator.ValidateAsync(request);
 
                 if (!validation.IsValid)
@@ -159,6 +175,14 @@ namespace Authentication.Api.Controllers
                     });
                 }
 
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Crear",
+                    Module = "ConfiguracionUsuarios",
+                    Description = $"Se creó el usuario {request.UserLogin!.Trim()} con el rol {request.IdRole}.",
+                    UserName = userName
+                });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -181,8 +205,20 @@ namespace Authentication.Api.Controllers
         [HttpPut]
         public async Task<IActionResult> Update([FromBody] UpdateUserDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+                }
+
                 var validation = await _updateUserValidator.ValidateAsync(request);
 
                 if (!validation.IsValid)
@@ -207,6 +243,14 @@ namespace Authentication.Api.Controllers
                     });
                 }
 
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Actualizar",
+                    Module = "ConfiguracionUsuarios",
+                    Description = $"Se actualizó el usuario {request.IdUser}: rol {request.IdRole} y estado {(request.StatusUser ? "activo" : "inactivo")}.",
+                    UserName = userName
+                });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -229,6 +273,8 @@ namespace Authentication.Api.Controllers
         [HttpDelete("{idUser:int}")]
         public async Task<IActionResult> Delete(int idUser)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (idUser <= 0)
@@ -237,6 +283,16 @@ namespace Authentication.Api.Controllers
                     {
                         IsSuccess = false,
                         Message = "El IdUser debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -252,6 +308,14 @@ namespace Authentication.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Eliminar",
+                    Module = "ConfiguracionUsuarios",
+                    Description = $"Se eliminó el usuario {idUser}.",
+                    UserName = userName
+                });
 
                 return Ok(new ResponseApi
                 {

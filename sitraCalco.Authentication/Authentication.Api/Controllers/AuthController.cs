@@ -10,12 +10,15 @@ namespace Authentication.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthApplication _authApplication;
+        private readonly ILogApplication _logApplication;
         private readonly ILogger<AuthController> _logger;
 
         public AuthController(IAuthApplication authApplication,
+            ILogApplication logApplication,
             ILogger<AuthController> logger)
         {
             _authApplication = authApplication;
+            _logApplication = logApplication;
             _logger = logger;
         }
 
@@ -35,6 +38,18 @@ namespace Authentication.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                var userName = authResponse.User?.UserLogin;
+                if (string.IsNullOrWhiteSpace(userName))
+                    throw new InvalidOperationException("No se pudo identificar al usuario autenticado para registrar su acceso.");
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "IniciarSesion",
+                    Module = "Autenticacion",
+                    Description = "Se inició sesión correctamente.",
+                    UserName = userName
+                });
 
                 return Ok(new ResponseApi
                 {
@@ -88,6 +103,18 @@ namespace Authentication.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                var userName = authResponse.User?.UserLogin;
+                if (string.IsNullOrWhiteSpace(userName))
+                    throw new InvalidOperationException("No se pudo identificar al usuario autenticado para registrar su acceso.");
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "IniciarSesion",
+                    Module = "Autenticacion",
+                    Description = "Se inició sesión correctamente desde intranet.",
+                    UserName = userName
+                });
 
                 return Ok(new ResponseApi
                 {
