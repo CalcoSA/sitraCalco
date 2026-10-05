@@ -1,5 +1,6 @@
 ﻿using Authentication.Application.Interfaces;
 using Authentication.Domain.Dtos;
+using Authentication.Api.Extensions;
 using Authentication.Domain.Responses;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -15,16 +16,19 @@ namespace Authentication.Api.Controllers
         private readonly IValidator<CreateRoleDto> _createRoleValidator;
         private readonly IValidator<UpdateRoleDto> _updateRoleValidator;
         private readonly IRoleApplication _roleApplication;
+        private readonly ILogApplication _logApplication;
         private readonly ILogger<RoleController> _logger;
 
         public RoleController(IValidator<CreateRoleDto> createRoleValidator,
             IValidator<UpdateRoleDto> updateRoleValidator,
             IRoleApplication roleApplication,
+            ILogApplication logApplication,
             ILogger<RoleController> logger)
         {            
             _createRoleValidator = createRoleValidator;
             _updateRoleValidator = updateRoleValidator;
             _roleApplication = roleApplication;
+            _logApplication = logApplication;
             _logger = logger;
         }
 
@@ -115,8 +119,20 @@ namespace Authentication.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateRoleDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+                }
+
                 var validation = await _createRoleValidator.ValidateAsync(request);
 
                 if (!validation.IsValid)
@@ -141,6 +157,14 @@ namespace Authentication.Api.Controllers
                     });
                 }
 
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Crear",
+                    Module = "ConfiguracionRoles",
+                    Description = $"Se creó el rol {request.NameRole!.Trim()} con sus opciones de menú.",
+                    UserName = userName
+                });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -164,8 +188,20 @@ namespace Authentication.Api.Controllers
         [HttpPut]
         public async Task<IActionResult> Update([FromBody] UpdateRoleDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+                }
+
                 var validation = await _updateRoleValidator.ValidateAsync(request);
 
                 if (!validation.IsValid)
@@ -190,6 +226,14 @@ namespace Authentication.Api.Controllers
                     });
                 }
 
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Actualizar",
+                    Module = "ConfiguracionRoles",
+                    Description = $"Se actualizó el rol {request.IdRole}: nombre {request.NameRole!.Trim()}, estado {(request.StatusRole == 1 ? "activo" : "inactivo")} y opciones de menú.",
+                    UserName = userName
+                });
+
                 return Ok(new ResponseApi
                 {
                     IsSuccess = true,
@@ -213,6 +257,8 @@ namespace Authentication.Api.Controllers
         [HttpDelete("{idRole:int}")]
         public async Task<IActionResult> Delete(int idRole)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (idRole <= 0)
@@ -221,6 +267,16 @@ namespace Authentication.Api.Controllers
                     {
                         IsSuccess = false,
                         Message = "El IdRole debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -236,6 +292,14 @@ namespace Authentication.Api.Controllers
                         Result = new { }
                     });
                 }
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Eliminar",
+                    Module = "ConfiguracionRoles",
+                    Description = $"Se eliminó el rol {idRole} y sus opciones de menú asociadas.",
+                    UserName = userName
+                });
 
                 return Ok(new ResponseApi
                 {
