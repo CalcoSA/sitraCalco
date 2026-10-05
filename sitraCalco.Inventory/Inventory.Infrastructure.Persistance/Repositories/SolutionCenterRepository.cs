@@ -3,6 +3,7 @@ using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
 using Inventory.Infrastructure.Persistance.Data;
 using Microsoft.EntityFrameworkCore;
+using MySqlConnector;
 
 namespace Inventory.Infrastructure.Persistance.Repositories
 {
@@ -76,6 +77,13 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
                 
                 var sectionId = section.section_id;
+
+                await _context.SolutionCenterSections.AddAsync(new SolutionCenterSection
+                {
+                    solution_center_id = solutionCenterId,
+                    section_id = sectionId,
+                    is_active = true
+                });
 
                 
                 var solutionCenterProducts = products
@@ -264,127 +272,59 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             if (solutionCenter is null)
                 return null;
 
-            
-            var details = await (
-                from association in
-                    _context.SolutionCenterProducts.AsNoTracking()
-
-                join section in
-                    _context.Sections.AsNoTracking()
-
-                on association.section_id
-                    equals section.section_id
-
-                join product in
-                    _context.Products.AsNoTracking()
-
-                on association.product_id
-                    equals product.product_id
-
-                where association.solution_center_id
-                    == solutionCenterId
-
-                orderby
-                    section.section_id,
-                    association.sort_order
-
-                select new
+            // Las secciones pertenecen al centro aunque todavía no tengan productos.
+            var sections = await (
+                from assignment in _context.SolutionCenterSections.AsNoTracking()
+                join section in _context.Sections.AsNoTracking()
+                    on assignment.section_id equals section.section_id
+                where assignment.solution_center_id == solutionCenterId
+                orderby section.section_id
+                select new SolutionCenterSectionDetailDto
                 {
-                    SectionId =
-                        section.section_id,
-
-                    SectionName =
-                        section.section_name,
-
-                    SectionIsActive =
-                        section.is_active,
-
-                    SolutionCenterProductId =
-                        association.solution_center_product_id,
-
-                    ProductId =
-                        product.product_id,
-
-                    ProductName =
-                        product.product_name,
-
-                    Reference =
-                        product.reference,
-
-                    UnitOfMeasure =
-                        product.unit_of_measure,
-
-                    PlanId =
-                        product.plan_id,
-
-                    SortOrder =
-                        association.sort_order,
-
-                    CreatedBy =
-                        association.created_by,
-
-                    CreatedAt =
-                        association.created_at
+                    SectionId = section.section_id,
+                    SectionName = section.section_name,
+                    IsActive = section.is_active,
+                    AssignmentIsActive = assignment.is_active
                 }
             ).ToListAsync();
 
-            // 3. Agrupar los productos por Section.
-            solutionCenter.Sections = details
-                .GroupBy(x => new
+            // Una consulta para todos los productos del centro, sin N+1 por sección.
+            var products = await (
+                from association in _context.SolutionCenterProducts.AsNoTracking()
+                join assignment in _context.SolutionCenterSections.AsNoTracking()
+                    on new { association.solution_center_id, association.section_id }
+                    equals new { assignment.solution_center_id, assignment.section_id }
+                join product in _context.Products.AsNoTracking()
+                    on association.product_id equals product.product_id
+                where association.solution_center_id == solutionCenterId
+                orderby association.sort_order
+                select new
                 {
-                    x.SectionId,
-                    x.SectionName,
-                    x.SectionIsActive
-                })
-                .Select(group =>
-                    new SolutionCenterSectionDetailDto
+                    association.section_id,
+                    Product = new SolutionCenterProductDetailDto
                     {
-                        SectionId =
-                            group.Key.SectionId,
+                        SolutionCenterProductId = association.solution_center_product_id,
+                        ProductId = product.product_id,
+                        ProductName = product.product_name,
+                        Reference = product.reference,
+                        UnitOfMeasure = product.unit_of_measure,
+                        PlanId = product.plan_id,
+                        SortOrder = association.sort_order,
+                        CreatedBy = association.created_by,
+                        CreatedAt = association.created_at
+                    }
+                }
+            ).ToListAsync();
 
-                        SectionName =
-                            group.Key.SectionName,
+            var productsBySection = products.ToLookup(item => item.section_id);
+            foreach (var section in sections)
+            {
+                section.Products = productsBySection[section.SectionId]
+                    .Select(item => item.Product)
+                    .ToList();
+            }
 
-                        IsActive =
-                            group.Key.SectionIsActive,
-
-                        Products = group
-                            .OrderBy(x =>
-                                x.SortOrder)
-                            .Select(x =>
-                                new SolutionCenterProductDetailDto
-                                {
-                                    SolutionCenterProductId =
-                                        x.SolutionCenterProductId,
-
-                                    ProductId =
-                                        x.ProductId,
-
-                                    ProductName =
-                                        x.ProductName,
-
-                                    Reference =
-                                        x.Reference,
-
-                                    UnitOfMeasure =
-                                        x.UnitOfMeasure,
-
-                                    PlanId =
-                                        x.PlanId,
-
-                                    SortOrder =
-                                        x.SortOrder,
-
-                                    CreatedBy =
-                                        x.CreatedBy,
-
-                                    CreatedAt =
-                                        x.CreatedAt
-                                })
-                            .ToList()
-                    })
-                .ToList();
-
+            solutionCenter.Sections = sections;
             return solutionCenter;
         }
 
@@ -428,11 +368,61 @@ namespace Inventory.Infrastructure.Persistance.Repositories
     long solutionCenterId,
     long sectionId)
         {
-            return await _context.SolutionCenterProducts
+            return await _context.SolutionCenterSections
                 .AsNoTracking()
                 .AnyAsync(x =>
                     x.solution_center_id == solutionCenterId &&
+                    x.section_id == sectionId &&
+                    x.is_active);
+        }
+
+        public async Task<Section?> GetSectionById(long sectionId)
+        {
+            return await _context.Sections
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.section_id == sectionId);
+        }
+
+        public async Task<SolutionCenterSection?> GetSectionAssignment(
+            long solutionCenterId,
+            long sectionId)
+        {
+            return await _context.SolutionCenterSections
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x =>
+                    x.solution_center_id == solutionCenterId &&
                     x.section_id == sectionId);
+        }
+
+        public async Task<bool> CreateSectionAssignment(SolutionCenterSection assignment)
+        {
+            await _context.SolutionCenterSections.AddAsync(assignment);
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException ex) when
+                (ex.InnerException is MySqlException { Number: 1062 })
+            {
+                // El UNIQUE centro/sección también protege ante asignaciones simultáneas.
+                _context.Entry(assignment).State = EntityState.Detached;
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateSectionAssignmentStatus(
+            long solutionCenterId,
+            long sectionId,
+            bool isActive)
+        {
+            return await _context.SolutionCenterSections
+                .Where(x =>
+                    x.solution_center_id == solutionCenterId &&
+                    x.section_id == sectionId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(x => x.is_active, isActive)) > 0;
         }
 
         public async Task<IEnumerable<Product>> GetSectionProducts(
@@ -629,22 +619,6 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                                 sectionId);
 
                 if (association is null)
-                {
-                    await transaction.RollbackAsync();
-                    return false;
-                }
-
-                // No permitir eliminar el último producto de la sección.
-                var productsCount =
-                    await _context.SolutionCenterProducts
-                        .CountAsync(x =>
-                            x.solution_center_id ==
-                                solutionCenterId
-                            &&
-                            x.section_id ==
-                                sectionId);
-
-                if (productsCount <= 1)
                 {
                     await transaction.RollbackAsync();
                     return false;

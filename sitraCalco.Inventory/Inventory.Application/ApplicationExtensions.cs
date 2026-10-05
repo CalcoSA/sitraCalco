@@ -15,9 +15,13 @@ namespace Inventory.Application
             services.AddScoped<ISolutionCenterApplication,SolutionCenterApplication>();
             services.AddScoped<ILogApplication,LogApplication>();
             services.AddScoped<ISectionApplication,SectionApplication>();
+            services.AddScoped<IPermissionApplication, PermissionApplication>();
+            services.AddScoped<IValidator<CreatePermissionDto>, CreatePermissionDtoValidator>();
+            services.AddScoped<IValidator<UpdatePermissionDto>, UpdatePermissionDtoValidator>();
             services.AddScoped<IValidator<CreateSectionDto>,CreateSectionDtoValidator>();
             services.AddScoped<IValidator<UpdateSectionDto>,UpdateSectionDtoValidator>();
             services.AddScoped<IInventoryConfigurationApplication,InventoryConfigurationApplication>();
+            services.AddScoped<IInventoryApplication, InventoryApplication>();
             services.AddScoped<IValidator<CreateInventoryConfigurationDto>,CreateInventoryConfigurationDtoValidator>();
             services.AddScoped<IValidator<CreateInventoryConfigurationAssignmentsDto>,CreateInventoryConfigurationAssignmentsDtoValidator>();
             services.AddScoped<IValidator<UpdateInventoryConfigurationAssignmentStatusDto>,UpdateInventoryConfigurationAssignmentStatusDtoValidator>();

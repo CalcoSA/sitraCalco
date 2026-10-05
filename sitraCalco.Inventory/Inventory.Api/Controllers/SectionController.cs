@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using Inventory.Api.Extensions;
+using FluentValidation;
 using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
@@ -143,18 +144,19 @@ namespace Inventory.Api.Controllers
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create(
-            [FromBody] CreateSectionDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] CreateSectionDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -236,9 +238,10 @@ namespace Inventory.Api.Controllers
         [HttpPut("{sectionId:long}")]
         public async Task<IActionResult> Update(
             long sectionId,
-            [FromBody] UpdateSectionDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateSectionDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (sectionId <= 0)
@@ -254,11 +257,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -389,9 +392,10 @@ namespace Inventory.Api.Controllers
         /// </summary>
         [HttpDelete("{sectionId:long}")]
         public async Task<IActionResult> Delete(
-            long sectionId,
-            [FromHeader(Name = "X-User")] string userName)
+            long sectionId)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (sectionId <= 0)
@@ -407,11 +411,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }

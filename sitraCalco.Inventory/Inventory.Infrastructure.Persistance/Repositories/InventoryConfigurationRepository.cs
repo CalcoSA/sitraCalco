@@ -103,14 +103,14 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             long solutionCenterId,
             long sectionId)
         {
-            return await _context.SolutionCenterProducts
+            return await _context.SolutionCenterSections
                 .AsNoTracking()
                 .AnyAsync(item =>
                     item.solution_center_id ==
                     solutionCenterId
                     &&
                     item.section_id ==
-                    sectionId);
+                    sectionId && item.is_active);
         }
 
         /// <summary>
@@ -437,6 +437,144 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             return section;
         }
+        /// <summary>
+        /// Obtiene el centro y su estado sin cargar secciones ni productos.
+        /// </summary>
+        public async Task<SolutionCenter?> GetSolutionCenterById(long solutionCenterId)
+        {
+            return await _context.SolutionCenters.AsNoTracking()
+                .FirstOrDefaultAsync(center => center.solution_center_id == solutionCenterId);
+        }
+
+        /// <summary>
+        /// Obtiene una sola fila por configuración con alguna asignación activa en el centro.
+        /// Las fechas y los días se evalúan posteriormente en Application.
+        /// </summary>
+        public async Task<IEnumerable<InventoryConfigurationAvailabilityDto>> GetAvailabilityCandidates(
+            long solutionCenterId)
+        {
+            // Any se traduce a EXISTS: varias secciones activas no multiplican las configuraciones.
+            var configurations = await _context.InventoryConfigurations.AsNoTracking()
+            .Where(configuration => _context.InventoryConfigurationAssignments.Any(assignment =>
+                assignment.inventory_configuration_id == configuration.inventory_configuration_id &&
+                assignment.solution_center_id == solutionCenterId &&
+                assignment.is_active &&
+                _context.SolutionCenterSections.Any(solutionCenterSection =>
+                    solutionCenterSection.solution_center_id == assignment.solution_center_id &&
+                    solutionCenterSection.section_id == assignment.section_id &&
+                    solutionCenterSection.is_active)))
+            .OrderBy(configuration => configuration.inventory_configuration_name)
+            .Select(configuration => new InventoryConfigurationAvailabilityDto
+            {
+                InventoryConfigurationId = configuration.inventory_configuration_id,
+                InventoryConfigurationName = configuration.inventory_configuration_name,
+                StartDate = configuration.start_date,
+                EndDate = configuration.end_date
+            })
+            .ToListAsync();
+
+            if (configurations.Count == 0)
+                return configurations;
+
+            var configurationIds = configurations.Select(configuration => configuration.InventoryConfigurationId).ToList();
+            // Una consulta para todos los días, siguiendo el patrón del repositorio y sin N+1.
+            var days = await _context.InventoryConfigurationDays.AsNoTracking()
+                .Where(day => configurationIds.Contains(day.inventory_configuration_id))
+                .Select(day => new
+                {
+                    day.inventory_configuration_id,
+                    day.day_of_week
+                })
+                .ToListAsync();
+
+            var daysByConfiguration = days.ToLookup(day => day.inventory_configuration_id, day => day.day_of_week);
+            foreach (var configuration in configurations)
+            {
+                configuration.Days = daysByConfiguration[configuration.InventoryConfigurationId].ToList();
+            }
+
+            return configurations;
+        }
+
+        /// <summary>
+        /// Obtiene secciones activas con una asignación activa para ambos IDs seleccionados.
+        /// </summary>
+        public async Task<IEnumerable<AvailableInventorySectionDto>> GetAvailableInventorySections(
+            long solutionCenterId,
+            long inventoryConfigurationId)
+        {
+            // Partir de Section y usar EXISTS evita duplicados por section_id y consultas N+1.
+            return await _context.Sections.AsNoTracking()
+            .Where(section => section.is_active &&
+                _context.InventoryConfigurationAssignments.Any(assignment =>
+                    assignment.solution_center_id == solutionCenterId &&
+                    assignment.inventory_configuration_id == inventoryConfigurationId &&
+                    assignment.section_id == section.section_id &&
+                    assignment.is_active &&
+                    _context.SolutionCenterSections.Any(solutionCenterSection =>
+                        solutionCenterSection.solution_center_id == assignment.solution_center_id &&
+                        solutionCenterSection.section_id == assignment.section_id &&
+                        solutionCenterSection.is_active)))
+            .OrderBy(section => section.section_name)
+            .Select(section => new AvailableInventorySectionDto
+            {
+                SectionId = section.section_id,
+                SectionName = section.section_name
+            })
+            .ToListAsync();
+        }
+
+        /// <summary>
+        /// Obtiene los productos del centro y sección con paginación y sin cargar datos administrativos.
+        /// </summary>
+        public async Task<PagedDto<AvailableInventoryProductDto>> GetAvailableInventoryProducts(
+            long solutionCenterId,
+            long sectionId,
+            int page,
+            int take)
+        {
+            var query =
+                from association in _context.SolutionCenterProducts.AsNoTracking()
+                join product in _context.Products.AsNoTracking()
+                    on association.product_id equals product.product_id
+                where association.solution_center_id == solutionCenterId &&
+                    association.section_id == sectionId
+                select new AvailableInventoryProductDto
+                {
+                    SolutionCenterProductId = association.solution_center_product_id,
+                    ProductId = product.product_id,
+                    ImagePath = product.image_path,
+                    Reference = product.reference,
+                    ProductName = product.product_name,
+                    UnitOfMeasure = product.unit_of_measure,
+                    PlanId = product.plan_id,
+                    SortOrder = association.sort_order
+                };
+
+            var total = await query.CountAsync();
+            var result = new PagedDto<AvailableInventoryProductDto>
+            {
+                Total = total,
+                Page = page,
+                Take = take,
+                Pages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)take)
+            };
+
+            // Evitar desbordamiento del offset y conservar los totales si se pide una página fuera de rango.
+            var offset = ((long)page - 1) * take;
+            if (offset >= total)
+                return result;
+
+            result.Items = await query
+                .OrderBy(product => product.SortOrder)
+                .ThenBy(product => product.SolutionCenterProductId)
+                .Skip((int)offset)
+                .Take(take)
+                .ToListAsync();
+
+            return result;
+        }
+
         /// <summary>
         /// Obtiene una bodega o punto de venta junto con
         /// todas las configuraciones de inventario que tiene asociadas,

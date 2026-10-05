@@ -5,7 +5,5 @@
         public long ProductId { get; set; }
 
         public int Position { get; set; }
-
-        public string CreatedBy { get; set; } = null!;
     }
 }

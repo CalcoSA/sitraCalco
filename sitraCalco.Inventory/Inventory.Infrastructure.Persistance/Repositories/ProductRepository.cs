@@ -258,6 +258,16 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .ToListAsync();
         }
 
+        public async Task<bool> TryUpdateImagePath(long productId, string? expectedImagePath, string? imagePath)
+        {
+            // Comparar la ruta leída evita sobrescrituras entre cargas simultáneas, sin nuevas columnas.
+            var updated = await _context.Products
+                .Where(product => product.product_id == productId && product.image_path == expectedImagePath)
+                .ExecuteUpdateAsync(update => update.SetProperty(product => product.image_path, imagePath));
+
+            return updated == 1;
+        }
+
         public async Task<Product?> GetProductById(
     long productId)
         {

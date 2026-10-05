@@ -1,5 +1,6 @@
 ﻿using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
+using Inventory.Application.Constants;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
 
@@ -9,16 +10,19 @@ namespace Inventory.Application.Services
     {
         private readonly ISolutionCenterRepository _solutionCenterRepository;
         private readonly IProductRepository    _productRepository;
+        private readonly IPermissionApplication _permissionApplication;
 
         public SolutionCenterApplication(
     ISolutionCenterRepository solutionCenterRepository,
-    IProductRepository productRepository)
+    IProductRepository productRepository,
+    IPermissionApplication permissionApplication)
         {
             _solutionCenterRepository =
                 solutionCenterRepository;
 
             _productRepository =
                 productRepository;
+            _permissionApplication = permissionApplication;
         }
 
         /// <summary>
@@ -280,45 +284,16 @@ namespace Inventory.Application.Services
                 if (take > 100)
                     take = 100;
 
-                var normalizedRole = role
-                    .Trim()
-                    .ToUpperInvariant();
+                var canViewAll = await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewAllSolutionCenters, role);
+                var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewWarehousesOnly, role);
 
-                long? solutionCenterTypeId;
+                if (!canViewAll && !canViewWarehouses)
+                    return null;
 
-                switch (normalizedRole)
-                {
-                    case "ALMACEN":
-
-                        // 1 = Bodega
-                        // Almacén solo puede visualizar bodegas.
-                        solutionCenterTypeId = 1;
-                        break;
-
-                    case "COSTOS":
-
-                        // Puede visualizar bodegas
-                        // y puntos de venta.
-                        solutionCenterTypeId = null;
-                        break;
-
-                    case "CONTROL INTERNO":
-
-                        // Puede visualizar bodegas
-                        // y puntos de venta.
-                        solutionCenterTypeId = null;
-                        break;
-
-                    case "ADMINISTRADOR":
-
-                        // Puede visualizar bodegas
-                        // y puntos de venta.
-                        solutionCenterTypeId = null;
-                        break;
-
-                    default:
-                        return null;
-                }
+                // El permiso de todos los centros tiene prioridad si el rol figura en ambos.
+                long? solutionCenterTypeId = canViewAll ? null : 1;
 
                 return await _solutionCenterRepository
                     .GetPagedSolutionCenters(
@@ -396,10 +371,121 @@ namespace Inventory.Application.Services
                 throw;
             }
         }
+        public async Task<SolutionCenterSectionResultDto> AssignExistingSection(
+            long solutionCenterId,
+            long sectionId)
+        {
+            try
+            {
+                if (solutionCenterId <= 0 || sectionId <= 0)
+                    return new() { Status = SolutionCenterSectionStatus.InvalidRequest };
+
+                var center = await _solutionCenterRepository.GetSolutionCenterById(solutionCenterId);
+                if (center is null)
+                    return new() { Status = SolutionCenterSectionStatus.SolutionCenterNotFound };
+
+                var section = await _solutionCenterRepository.GetSectionById(sectionId);
+                if (section is null)
+                    return new() { Status = SolutionCenterSectionStatus.SectionNotFound };
+
+                if (!section.is_active)
+                    return new() { Status = SolutionCenterSectionStatus.SectionInactive };
+
+                var assignment = await _solutionCenterRepository
+                    .GetSectionAssignment(solutionCenterId, sectionId);
+
+                if (assignment is not null && assignment.is_active)
+                    return new() { Status = SolutionCenterSectionStatus.AlreadyAssigned };
+
+                if (assignment is null)
+                {
+                    var created = await _solutionCenterRepository.CreateSectionAssignment(
+                        new SolutionCenterSection
+                        {
+                            solution_center_id = solutionCenterId,
+                            section_id = sectionId,
+                            is_active = true
+                        });
+
+                    if (!created)
+                        return new() { Status = SolutionCenterSectionStatus.AlreadyAssigned };
+                }
+                else
+                {
+                    var updated = await _solutionCenterRepository
+                        .UpdateSectionAssignmentStatus(solutionCenterId, sectionId, true);
+
+                    if (!updated)
+                        return new() { Status = SolutionCenterSectionStatus.AssignmentNotFound };
+                }
+
+                return new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.Success,
+                    SolutionCenterName = center.SolutionCenterName,
+                    SectionName = section.section_name,
+                    WasReactivated = assignment is not null
+                };
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        public async Task<SolutionCenterSectionResultDto> UpdateSectionAssignmentStatus(
+            long solutionCenterId,
+            long sectionId,
+            bool isActive)
+        {
+            try
+            {
+                if (solutionCenterId <= 0 || sectionId <= 0)
+                    return new() { Status = SolutionCenterSectionStatus.InvalidRequest };
+
+                var center = await _solutionCenterRepository.GetSolutionCenterById(solutionCenterId);
+                if (center is null)
+                    return new() { Status = SolutionCenterSectionStatus.SolutionCenterNotFound };
+
+                var section = await _solutionCenterRepository.GetSectionById(sectionId);
+                if (section is null)
+                    return new() { Status = SolutionCenterSectionStatus.SectionNotFound };
+
+                var assignment = await _solutionCenterRepository
+                    .GetSectionAssignment(solutionCenterId, sectionId);
+                if (assignment is null)
+                    return new() { Status = SolutionCenterSectionStatus.AssignmentNotFound };
+
+                // Reactivar una asignación tampoco activa automáticamente el catálogo maestro.
+                if (isActive && !section.is_active)
+                    return new() { Status = SolutionCenterSectionStatus.SectionInactive };
+
+                if (assignment.is_active != isActive)
+                {
+                    var updated = await _solutionCenterRepository
+                        .UpdateSectionAssignmentStatus(solutionCenterId, sectionId, isActive);
+                    if (!updated)
+                        return new() { Status = SolutionCenterSectionStatus.AssignmentNotFound };
+                }
+
+                return new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.Success,
+                    SolutionCenterName = center.SolutionCenterName,
+                    SectionName = section.section_name
+                };
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
         public async Task<long> AddProductToSection(
     long solutionCenterId,
     long sectionId,
-    AddSectionProductDto request)
+    AddSectionProductDto request,
+    string userName)
         {
             try
             {
@@ -419,7 +505,7 @@ namespace Inventory.Application.Services
                     return 0;
 
                 if (string.IsNullOrWhiteSpace(
-                    request.CreatedBy))
+                    userName))
                     return 0;
 
                 // El centro debe existir.
@@ -431,10 +517,7 @@ namespace Inventory.Application.Services
                 if (!solutionCenterExists)
                     return 0;
 
-                // La sección debe pertenecer al centro.
-                //
-                // IMPORTANTE:
-                // NO validamos is_active.
+                // La asignación al centro debe estar activa, aunque aún no tenga productos.
                 var sectionBelongs =
                     await _solutionCenterRepository
                         .SectionBelongsToSolutionCenter(
@@ -495,7 +578,7 @@ namespace Inventory.Application.Services
                         sectionId,
                         request.ProductId,
                         request.Position,
-                        request.CreatedBy.Trim());
+                        userName.Trim());
             }
             catch
             {
@@ -539,9 +622,7 @@ namespace Inventory.Application.Services
                 if (!sectionBelongs)
                     return false;
 
-                // IMPORTANTE:
-                // No validar is_active.
-                // Una sección inactiva puede seguir configurándose.
+                // El estado global de Section es independiente del estado de la asignación.
 
                 return await _solutionCenterRepository
                     .UpdateProductOrder(
@@ -588,9 +669,7 @@ namespace Inventory.Application.Services
                 if (!sectionBelongs)
                     return false;
 
-                // IMPORTANTE:
-                // No validamos is_active.
-                // Una sección inactiva sigue siendo configurable.
+                // El estado global de Section es independiente del estado de la asignación.
 
                 return await _solutionCenterRepository
                     .DeleteProductFromSection(

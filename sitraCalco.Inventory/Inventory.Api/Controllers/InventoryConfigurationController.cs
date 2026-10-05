@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using Inventory.Api.Extensions;
+using FluentValidation;
 using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
@@ -79,18 +80,19 @@ namespace Inventory.Api.Controllers
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create(
-            [FromBody] CreateInventoryConfigurationDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] CreateInventoryConfigurationDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -195,9 +197,10 @@ namespace Inventory.Api.Controllers
         [HttpPost("{inventoryConfigurationId:long}/assignments")]
         public async Task<IActionResult> CreateAssignments(
             long inventoryConfigurationId,
-            [FromBody] CreateInventoryConfigurationAssignmentsDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] CreateInventoryConfigurationAssignmentsDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0)
@@ -224,11 +227,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -505,6 +508,375 @@ namespace Inventory.Api.Controllers
             }
         }
         /// <summary>
+        /// Obtiene las configuraciones disponibles para realizar inventario en la fecha actual.
+        /// </summary>
+        [HttpGet("solution-center/{solutionCenterId:long}/available")]
+        public async Task<IActionResult> GetAvailableInventoryConfigurations(long solutionCenterId)
+        {
+            var role = User.GetRoleName();
+
+            try
+            {
+                if (solutionCenterId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador de la bodega o punto de venta debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un nameRole válido.",
+                        Result = new { }
+                    });
+                }
+
+                var result = await _inventoryConfigurationApplication
+                    .GetAvailableInventoryConfigurations(solutionCenterId, role);
+
+                if (!result.IsValidRole)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol del token no tiene permisos para esta consulta.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.IsAllowed)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol no tiene permisos para consultar este centro.",
+                        Result = new { }
+                    });
+                }
+
+                if (result.Data is null)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La bodega o punto de venta no existe.",
+                        Result = new { }
+                    });
+                }
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = result.Data.Any(),
+                    Message = result.Data.Any()
+                        ? "Inventarios disponibles consultados correctamente."
+                        : "No hay inventarios disponibles para este centro en la fecha actual.",
+                    Result = result.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al consultar los inventarios disponibles del Solution Center {SolutionCenterId} para el rol {Role}.",
+                    solutionCenterId, role);
+
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al consultar los inventarios disponibles.",
+                    Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Obtiene las secciones activas de una configuración actualmente disponible para el centro.
+        /// </summary>
+        [HttpGet("solution-center/{solutionCenterId:long}/configuration/{inventoryConfigurationId:long}/sections")]
+        public async Task<IActionResult> GetAvailableInventorySections(
+            long solutionCenterId,
+            long inventoryConfigurationId)
+        {
+            var role = User.GetRoleName();
+
+            try
+            {
+                if (solutionCenterId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador de la bodega o punto de venta debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (inventoryConfigurationId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador de la configuración de inventario debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un nameRole válido.",
+                        Result = new { }
+                    });
+                }
+
+                var result = await _inventoryConfigurationApplication
+                    .GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId, role);
+
+                if (!result.IsValidRole)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol del token no tiene permisos para esta consulta.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.IsAllowed)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol no tiene permisos para consultar este centro.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.SolutionCenterExists)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La bodega o punto de venta no existe.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.ConfigurationExists)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La configuración de inventario no existe.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.IsAvailable)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La configuración de inventario no está disponible para este centro.",
+                        Result = new { }
+                    });
+                }
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = result.Data.Any(),
+                    Message = result.Data.Any()
+                        ? "Secciones disponibles consultadas correctamente."
+                        : "No hay secciones disponibles para esta configuración.",
+                    Result = result.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al consultar las secciones disponibles del Solution Center {SolutionCenterId} y la configuración {InventoryConfigurationId} para el rol {Role}.",
+                    solutionCenterId, inventoryConfigurationId, role);
+
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al consultar las secciones disponibles.",
+                    Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Obtiene los productos paginados de una sección disponible para la configuración y el centro.
+        /// </summary>
+        [HttpGet("solution-center/{solutionCenterId:long}/configuration/{inventoryConfigurationId:long}/section/{sectionId:long}/products")]
+        public async Task<IActionResult> GetAvailableInventoryProducts(
+            long solutionCenterId,
+            long inventoryConfigurationId,
+            long sectionId,
+            [FromQuery] int page = 1,
+            [FromQuery] int take = 20)
+        {
+            var role = User.GetRoleName();
+
+            try
+            {
+                if (solutionCenterId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador de la bodega o punto de venta debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (inventoryConfigurationId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador de la configuración de inventario debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (sectionId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador de la sección debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (page <= 0 || take <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "Page y Take deben ser mayores a cero.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un nameRole válido.",
+                        Result = new { }
+                    });
+                }
+
+                var result = await _inventoryConfigurationApplication
+                    .GetAvailableInventoryProducts(solutionCenterId, inventoryConfigurationId, sectionId, role, page, take);
+
+                if (!result.IsValidRole)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol del token no tiene permisos para esta consulta.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.IsAllowed)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol no tiene permisos para consultar este centro.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.HasDetailPermission)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol no tiene permisos para consultar el detalle del inventario.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.SolutionCenterExists)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La bodega o punto de venta no existe.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.ConfigurationExists)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La configuración de inventario no existe.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.IsAvailable)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La configuración de inventario no está disponible para este centro.",
+                        Result = new { }
+                    });
+                }
+
+                if (!result.IsSectionAvailable)
+                {
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "La sección no está disponible para esta configuración y centro.",
+                        Result = new { }
+                    });
+                }
+
+                var hasProducts = result.Data.Items.Any();
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = hasProducts,
+                    Message = hasProducts
+                        ? "Productos de la sección consultados correctamente."
+                        : "No hay productos disponibles para esta sección.",
+                    Result = result.Data
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al consultar los productos del Solution Center {SolutionCenterId}, la configuración {InventoryConfigurationId} y la sección {SectionId} para el rol {Role}.",
+                    solutionCenterId, inventoryConfigurationId, sectionId, role);
+
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al consultar los productos de la sección.",
+                    Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
         /// Obtiene todas las configuraciones de inventario
         /// asociadas a una bodega o punto de venta,
         /// aplicando permisos según el rol.
@@ -513,9 +885,10 @@ namespace Inventory.Api.Controllers
             "solution-center/{solutionCenterId:long}/configurations")]
         public async Task<IActionResult>
             GetInventoryConfigurationsBySolutionCenterId(
-                long solutionCenterId,
-                [FromQuery] string role)
+                long solutionCenterId)
         {
+            var role = User.GetRoleName();
+
             try
             {
                 if (solutionCenterId <= 0)
@@ -531,11 +904,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(role))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El rol es obligatorio.",
+                            "El token no contiene un nameRole válido.",
                         Result = new { }
                     });
                 }
@@ -548,11 +921,11 @@ namespace Inventory.Api.Controllers
 
                 if (!result.IsValidRole)
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El rol enviado no es válido.",
+                            "El rol del token no tiene permisos para esta consulta.",
                         Result = new { }
                     });
                 }
@@ -616,9 +989,10 @@ namespace Inventory.Api.Controllers
         /// </summary>
         [HttpGet("{inventoryConfigurationId:long}/details")]
         public async Task<IActionResult> GetInventoryConfigurationById(
-            long inventoryConfigurationId,
-            [FromQuery] string role)
+            long inventoryConfigurationId)
         {
+            var role = User.GetRoleName();
+
             try
             {
                 if (inventoryConfigurationId <= 0)
@@ -634,11 +1008,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(role))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El rol es obligatorio.",
+                            "El token no contiene un nameRole válido.",
                         Result = new { }
                     });
                 }
@@ -651,11 +1025,11 @@ namespace Inventory.Api.Controllers
 
                 if (!result.IsValidRole)
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El rol enviado no es válido.",
+                            "El rol del token no tiene permisos para esta consulta.",
                         Result = new { }
                     });
                 }
@@ -706,9 +1080,10 @@ namespace Inventory.Api.Controllers
             long inventoryConfigurationId,
             long solutionCenterId,
             long sectionId,
-            [FromBody] UpdateInventoryConfigurationAssignmentStatusDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateInventoryConfigurationAssignmentStatusDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0 ||
@@ -737,11 +1112,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -854,9 +1229,10 @@ namespace Inventory.Api.Controllers
         [HttpPatch("{inventoryConfigurationId:long}")]
         public async Task<IActionResult> UpdateInventoryConfiguration(
             long inventoryConfigurationId,
-            [FromBody] UpdateInventoryConfigurationDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateInventoryConfigurationDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0)
@@ -883,11 +1259,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -993,9 +1369,10 @@ namespace Inventory.Api.Controllers
         [HttpPost("{inventoryConfigurationId:long}/days")]
         public async Task<IActionResult> AddDays(
             long inventoryConfigurationId,
-            [FromBody] AddInventoryConfigurationDaysDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] AddInventoryConfigurationDaysDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0)
@@ -1022,11 +1399,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -1123,9 +1500,10 @@ namespace Inventory.Api.Controllers
         [HttpDelete("{inventoryConfigurationId:long}/days/{dayOfWeek}")]
         public async Task<IActionResult> DeleteDay(
             long inventoryConfigurationId,
-            string dayOfWeek,
-            [FromHeader(Name = "X-User")] string userName)
+            string dayOfWeek)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0)
@@ -1152,11 +1530,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -1233,9 +1611,10 @@ namespace Inventory.Api.Controllers
         public async Task<IActionResult> DeleteAssignment(
             long inventoryConfigurationId,
             long solutionCenterId,
-            long sectionId,
-            [FromHeader(Name = "X-User")] string userName)
+            long sectionId)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0 ||
@@ -1253,11 +1632,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -1341,9 +1720,10 @@ namespace Inventory.Api.Controllers
             "{inventoryConfigurationId:long}/sections/{sectionId:long}")]
         public async Task<IActionResult> DeleteAssignmentsBySection(
             long inventoryConfigurationId,
-            long sectionId,
-            [FromHeader(Name = "X-User")] string userName)
+            long sectionId)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (inventoryConfigurationId <= 0 ||
@@ -1360,11 +1740,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }

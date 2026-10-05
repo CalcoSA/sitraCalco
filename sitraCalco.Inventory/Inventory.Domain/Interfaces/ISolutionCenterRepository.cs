@@ -33,6 +33,14 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> SectionBelongsToSolutionCenter(long solutionCenterId,long sectionId);
 
+        Task<Section?> GetSectionById(long sectionId);
+
+        Task<SolutionCenterSection?> GetSectionAssignment(long solutionCenterId,long sectionId);
+
+        Task<bool> CreateSectionAssignment(SolutionCenterSection assignment);
+
+        Task<bool> UpdateSectionAssignmentStatus(long solutionCenterId,long sectionId,bool isActive);
+
         Task<long> AddProductToSection(long solutionCenterId,long sectionId,long productId,int position,string createdBy);
 
         Task<bool> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
