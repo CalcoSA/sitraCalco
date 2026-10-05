@@ -9,12 +9,14 @@ namespace Authentication.Application.Services
     public class UserApplication : IUserApplication
     {
         private readonly IUserRepository _userRepository;
+        private readonly IRoleRepository _roleRepository;
         private readonly IMapper _mapper;
 
-        public UserApplication(IUserRepository userRepository, IMapper mapper)
+        public UserApplication(IUserRepository userRepository, IMapper mapper, IRoleRepository roleRepository)
         {
             _userRepository = userRepository;
             _mapper = mapper;
+            _roleRepository = roleRepository;
         }
 
         /// <summary>
@@ -96,7 +98,7 @@ namespace Authentication.Application.Services
                 var userLogin = entity.UserLogin.Trim();
                 var userName = entity.UserName.Trim();
 
-                var roleExists = await _userRepository.GetById(entity.IdRole);
+                var roleExists = await _roleRepository.GetById(entity.IdRole);
 
                 if (roleExists == null)
                     return false;
@@ -148,7 +150,7 @@ namespace Authentication.Application.Services
                 if (currentUser is null)
                     return false;
 
-                var roleExists = await _userRepository.GetById(entity.IdRole);
+                var roleExists = await _roleRepository.GetById(entity.IdRole);
 
                 if (roleExists == null)
                     return false;

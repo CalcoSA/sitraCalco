@@ -1,7 +1,10 @@
 ﻿using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
+using Inventory.Application.Constants;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
+using Inventory.Domain.Options;
+using Microsoft.Extensions.Options;
 
 namespace Inventory.Application.Services
 {
@@ -10,13 +13,22 @@ namespace Inventory.Application.Services
     {
         private readonly IInventoryConfigurationRepository
             _inventoryConfigurationRepository;
+        private readonly IPermissionApplication _permissionApplication;
+        private readonly IStorageService? _storageService;
+        private readonly GoogleCloudStorageOptions? _storageOptions;
 
         public InventoryConfigurationApplication(
             IInventoryConfigurationRepository
-                inventoryConfigurationRepository)
+                inventoryConfigurationRepository,
+            IPermissionApplication permissionApplication,
+            IStorageService? storageService = null,
+            IOptions<GoogleCloudStorageOptions>? storageOptions = null)
         {
             _inventoryConfigurationRepository =
                 inventoryConfigurationRepository;
+            _permissionApplication = permissionApplication;
+            _storageService = storageService;
+            _storageOptions = storageOptions?.Value;
         }
 
         /// <summary>
@@ -281,6 +293,185 @@ namespace Inventory.Application.Services
             }
         }
         /// <summary>
+        /// Obtiene las configuraciones disponibles hoy para realizar inventario en el centro.
+        /// </summary>
+        public async Task<AvailableInventoryConfigurationsResultDto> GetAvailableInventoryConfigurations(
+            long solutionCenterId,
+            string role)
+        {
+            var result = new AvailableInventoryConfigurationsResultDto();
+
+            if (solutionCenterId <= 0 || string.IsNullOrWhiteSpace(role))
+                return result;
+
+            var canViewAll = await _permissionApplication.HasPermission(
+                PermissionKeys.ViewAllSolutionCenters, role);
+            var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(
+                PermissionKeys.ViewWarehousesOnly, role);
+
+            if (!canViewAll && !canViewWarehouses)
+                return result;
+
+            result.IsValidRole = true;
+
+            var solutionCenter = await _inventoryConfigurationRepository.GetSolutionCenterById(solutionCenterId);
+            if (solutionCenter is null)
+            {
+                result.IsAllowed = true;
+                return result;
+            }
+
+            const long warehouseTypeId = 1;
+            if (!canViewAll && solutionCenter.solution_center_type_id != warehouseTypeId)
+                return result;
+
+            result.IsAllowed = true;
+            result.Data = new List<AvailableInventoryConfigurationDto>();
+
+            if (!solutionCenter.is_active)
+                return result;
+
+            // Mantener la convención de hora local del servidor utilizada por Inventory.
+            // Una sola lectura evita inconsistencias entre fecha y día al cruzar medianoche.
+            var today = DateTime.Today;
+            var currentDay = today.DayOfWeek switch
+            {
+                DayOfWeek.Monday => "Lunes",
+                DayOfWeek.Tuesday => "Martes",
+                DayOfWeek.Wednesday => "Miercoles",
+                DayOfWeek.Thursday => "Jueves",
+                DayOfWeek.Friday => "Viernes",
+                DayOfWeek.Saturday => "Sabado",
+                DayOfWeek.Sunday => "Domingo",
+                _ => throw new InvalidOperationException("El día actual no es válido.")
+            };
+
+            var configurations = await _inventoryConfigurationRepository.GetAvailabilityCandidates(solutionCenterId);
+
+            result.Data = configurations
+                .Where(configuration =>
+                    (!configuration.StartDate.HasValue || today >= configuration.StartDate.Value.Date) &&
+                    (!configuration.EndDate.HasValue || today <= configuration.EndDate.Value.Date) &&
+                    (configuration.Days.Count == 0 || configuration.Days.Any(day =>
+                        string.Equals(NormalizeDay(day), currentDay, StringComparison.OrdinalIgnoreCase))))
+                .OrderBy(configuration => configuration.InventoryConfigurationName)
+                .Select(configuration => new AvailableInventoryConfigurationDto
+                {
+                    InventoryConfigurationId = configuration.InventoryConfigurationId,
+                    InventoryConfigurationName = configuration.InventoryConfigurationName
+                })
+                .ToList();
+
+            return result;
+        }
+
+        /// <summary>
+        /// Obtiene las secciones activas de una configuración disponible hoy para el centro.
+        /// </summary>
+        public async Task<AvailableInventorySectionsResultDto> GetAvailableInventorySections(
+            long solutionCenterId,
+            long inventoryConfigurationId,
+            string role)
+        {
+            var result = new AvailableInventorySectionsResultDto();
+
+            if (solutionCenterId <= 0 || inventoryConfigurationId <= 0 || string.IsNullOrWhiteSpace(role))
+                return result;
+
+            // Revalidar las mismas reglas de /available, sin depender de una consulta previa del frontend.
+            var availability = await GetAvailableInventoryConfigurations(solutionCenterId, role);
+            result.IsValidRole = availability.IsValidRole;
+            result.IsAllowed = availability.IsAllowed;
+
+            if (!result.IsValidRole || !result.IsAllowed || availability.Data is null)
+                return result;
+
+            result.SolutionCenterExists = true;
+            result.ConfigurationExists = await _inventoryConfigurationRepository.ConfigurationExists(inventoryConfigurationId);
+
+            if (!result.ConfigurationExists)
+                return result;
+
+            result.IsAvailable = availability.Data.Any(configuration =>
+                configuration.InventoryConfigurationId == inventoryConfigurationId);
+
+            if (!result.IsAvailable)
+                return result;
+
+            result.Data = (await _inventoryConfigurationRepository
+                .GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId)).ToList();
+
+            return result;
+        }
+
+        /// <summary>
+        /// Obtiene una página de productos de una sección disponible para la configuración y el centro.
+        /// </summary>
+        public async Task<AvailableInventoryProductsResultDto> GetAvailableInventoryProducts(
+            long solutionCenterId,
+            long inventoryConfigurationId,
+            long sectionId,
+            string role,
+            int page,
+            int take)
+        {
+            var result = new AvailableInventoryProductsResultDto();
+
+            if (solutionCenterId <= 0 || inventoryConfigurationId <= 0 || sectionId <= 0 ||
+                page <= 0 || take <= 0 || string.IsNullOrWhiteSpace(role))
+                return result;
+
+            // Reutilizar toda la cadena de permisos, disponibilidad y asignaciones del punto de entrada de secciones.
+            var availability = await GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId, role);
+            result.IsValidRole = availability.IsValidRole;
+            result.IsAllowed = availability.IsAllowed;
+            result.SolutionCenterExists = availability.SolutionCenterExists;
+            result.ConfigurationExists = availability.ConfigurationExists;
+            result.IsAvailable = availability.IsAvailable;
+
+            if (!result.IsValidRole || !result.IsAllowed)
+                return result;
+
+            var canViewFullDetail = await _permissionApplication.HasPermission(
+                PermissionKeys.ViewFullInventoryDetail, role);
+            var canViewLimitedDetail = !canViewFullDetail && await _permissionApplication.HasPermission(
+                PermissionKeys.ViewLimitedInventoryDetail, role);
+
+            // Ambos permisos habilitan los datos base; aún no hay conteos ni datos ERP integrados que diferenciar.
+            result.HasDetailPermission = canViewFullDetail || canViewLimitedDetail;
+            if (!result.HasDetailPermission || !result.SolutionCenterExists ||
+                !result.ConfigurationExists || !result.IsAvailable)
+                return result;
+
+            result.IsSectionAvailable = availability.Data.Any(section => section.SectionId == sectionId);
+            if (!result.IsSectionAvailable)
+                return result;
+
+            result.Data = await _inventoryConfigurationRepository
+                .GetAvailableInventoryProducts(solutionCenterId, sectionId, page, take);
+
+            var productsWithImages = result.Data.Items
+                .Where(product => !string.IsNullOrWhiteSpace(product.ImagePath))
+                .ToList();
+
+            if (productsWithImages.Count > 0)
+            {
+                var storageService = _storageService ?? throw new InvalidOperationException(
+                    "El servicio de almacenamiento es obligatorio para generar las URLs de las imágenes.");
+                var storageOptions = _storageOptions ?? throw new InvalidOperationException(
+                    "La configuración de almacenamiento es obligatoria para generar las URLs de las imágenes.");
+                var expiresAt = DateTimeOffset.UtcNow.AddMinutes(storageOptions.SignedUrlExpirationMinutes);
+
+                foreach (var product in productsWithImages)
+                {
+                    product.ImageUrl = await storageService.GenerateSignedUrlAsync(product.ImagePath!, expiresAt);
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Obtiene las configuraciones de inventario asociadas
         /// a una bodega o punto de venta aplicando permisos por rol.
         /// </summary>
@@ -305,19 +496,12 @@ namespace Inventory.Application.Services
                 if (string.IsNullOrWhiteSpace(role))
                     return result;
 
-                var normalizedRole =
-                    role.Trim().ToUpperInvariant();
+                var canViewAll = await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewAllSolutionCenters, role);
+                var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewWarehousesOnly, role);
 
-                var validRoles =
-                    new[]
-                    {
-                "ALMACEN",
-                "COSTOS",
-                "CONTROL INTERNO",
-                "ADMINISTRADOR"
-                    };
-
-                if (!validRoles.Contains(normalizedRole))
+                if (!canViewAll && !canViewWarehouses)
                     return result;
 
                 result.IsValidRole = true;
@@ -336,8 +520,8 @@ namespace Inventory.Application.Services
 
                 const long warehouseTypeId = 1;
 
-                // ALMACEN solamente puede consultar bodegas.
-                if (normalizedRole == "ALMACEN" &&
+                // La visibilidad de bodegas se obtiene de Permission, no del nombre del rol.
+                if (!canViewAll &&
                     data.SolutionCenterTypeId != warehouseTypeId)
                 {
                     result.IsAllowed = false;
@@ -378,19 +562,12 @@ namespace Inventory.Application.Services
                 if (string.IsNullOrWhiteSpace(role))
                     return result;
 
-                var normalizedRole =
-                    role.Trim().ToUpperInvariant();
+                var canViewAll = await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewAllSolutionCenters, role);
+                var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewWarehousesOnly, role);
 
-                var validRoles =
-                    new[]
-                    {
-                "ALMACEN",
-                "COSTOS",
-                "CONTROL INTERNO",
-                "ADMINISTRADOR"
-                    };
-
-                if (!validRoles.Contains(normalizedRole))
+                if (!canViewAll && !canViewWarehouses)
                     return result;
 
                 result.IsValidRole = true;
@@ -406,8 +583,8 @@ namespace Inventory.Application.Services
 
                 const long warehouseTypeId = 1;
 
-                // ALMACEN solamente puede visualizar Bodegas.
-                if (normalizedRole == "ALMACEN")
+                // Mantener el filtro actual según el permiso de visibilidad configurado.
+                if (!canViewAll)
                 {
                     data.SolutionCenters =
                         data.SolutionCenters

@@ -1,4 +1,5 @@
-﻿using Inventory.Api.Controllers;
+﻿using Inventory.Test.Helpers;
+using Inventory.Api.Controllers;
 using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Models;
@@ -161,10 +162,9 @@ namespace Inventory.Test.Controllers
         public async Task CreateSolutionCenter_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSolutionCenter(
-                        null!,
-                        "juan.zapata");
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -201,10 +201,9 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSolutionCenter(
-                        request,
-                        "juan.zapata");
+                    request);
 
             var badRequest =
                 Assert.IsType<BadRequestObjectResult>(
@@ -228,7 +227,7 @@ namespace Inventory.Test.Controllers
         }
 
         [Fact]
-        public async Task CreateSolutionCenter_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task CreateSolutionCenter_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new CreateSolutionCenterDto
@@ -240,21 +239,21 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .CreateSolutionCenter(
-                        request,
-                        "");
+                    request);
 
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(
-                    result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
                 Assert.IsType<ResponseApi>(
-                    badRequest.Value);
+                    forbidden.Value);
 
             Assert.Equal(
-                "El usuario que ejecuta la operación es obligatorio.",
+                "El token no contiene un userLogin válido.",
                 response.Message);
 
             _solutionCenterApplicationMock.Verify(
@@ -282,10 +281,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(0);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSolutionCenter(
-                        request,
-                        "juan.zapata");
+                    request);
 
             var badRequest =
                 Assert.IsType<BadRequestObjectResult>(
@@ -324,10 +322,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(5);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
                     .CreateSolutionCenter(
-                        request,
-                        "  juan.zapata  ");
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -378,10 +375,9 @@ namespace Inventory.Test.Controllers
                         "Error de prueba"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSolutionCenter(
-                        request,
-                        "juan.zapata");
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -410,11 +406,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSectionConfiguration(
-                        solutionCenterId,
-                        request,
-                        "juan.zapata");
+                    solutionCenterId,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -431,18 +426,17 @@ namespace Inventory.Test.Controllers
         public async Task CreateSectionConfiguration_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSectionConfiguration(
-                        1,
-                        null!,
-                        "juan.zapata");
+                    1,
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task CreateSectionConfiguration_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task CreateSectionConfiguration_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new CreateSectionConfigurationDto
@@ -452,14 +446,14 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .CreateSectionConfiguration(
-                        1,
-                        request,
-                        "");
+                    1,
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             _solutionCenterApplicationMock.Verify(
                 x => x.CreateSectionConfiguration(
@@ -488,11 +482,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(0);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSectionConfiguration(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -531,11 +524,10 @@ namespace Inventory.Test.Controllers
                         "Perecederos"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSectionConfiguration(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -588,11 +580,10 @@ namespace Inventory.Test.Controllers
                     (SolutionCenterDetailDto?)null);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSectionConfiguration(
-                        5,
-                        request,
-                        "juan.zapata");
+                    5,
+                    request);
 
             Assert.IsType<OkObjectResult>(
                 result);
@@ -626,11 +617,10 @@ namespace Inventory.Test.Controllers
                         "Error de prueba"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .CreateSectionConfiguration(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -642,21 +632,344 @@ namespace Inventory.Test.Controllers
         }
 
         // =========================================================
+        // ASSIGN EXISTING SECTION
+        // =========================================================
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnBadRequest_WhenSolutionCenterIdIsInvalid()
+        {
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(0, 2);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(badRequest.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Los identificadores deben ser mayores a cero.", response.Message);
+
+            _solutionCenterApplicationMock.Verify(
+                x => x.AssignExistingSection(It.IsAny<long>(), It.IsAny<long>()),
+                Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnBadRequest_WhenSectionIdIsInvalid()
+        {
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(1, 0);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(badRequest.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Los identificadores deben ser mayores a cero.", response.Message);
+
+            _solutionCenterApplicationMock.Verify(
+                x => x.AssignExistingSection(It.IsAny<long>(), It.IsAny<long>()),
+                Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnForbidden_WhenUserLoginClaimIsMissing()
+        {
+            var result = await _controller.WithIdentity(userLogin: null)
+                .AssignExistingSection(1, 2);
+
+            var forbidden = Assert.IsType<ObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(forbidden.Value);
+
+            Assert.Equal(403, forbidden.StatusCode);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("El token no contiene un userLogin válido.", response.Message);
+
+            _solutionCenterApplicationMock.Verify(
+                x => x.AssignExistingSection(It.IsAny<long>(), It.IsAny<long>()),
+                Times.Never);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnNotFound_WhenSolutionCenterDoesNotExist()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.SolutionCenterNotFound
+                });
+
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(1, 2);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(notFound.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La bodega o punto de venta no existe.", response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnNotFound_WhenSectionDoesNotExist()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.SectionNotFound
+                });
+
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(1, 2);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(notFound.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La sección no existe.", response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnBadRequest_WhenGlobalSectionIsInactive()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.SectionInactive
+                });
+
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(1, 2);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(badRequest.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal(
+                "La sección está inactiva en el catálogo. Actívela antes de asignarla o reactivar su asignación.",
+                response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnBadRequest_WhenAlreadyAssigned()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.AlreadyAssigned
+                });
+
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(1, 2);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(badRequest.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La sección ya está asignada a la bodega o punto de venta.", response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnOk_WhenInactiveAssignmentIsReactivated()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.Success,
+                    SolutionCenterName = "No perecederos",
+                    SectionName = "Pasillo 1",
+                    WasReactivated = true
+                });
+
+            var result = await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                .AssignExistingSection(1, 2);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(ok.Value);
+
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Sección asignada correctamente.", response.Message);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.Is<CreateLogDto>(log =>
+                    log.Action == "Crear" &&
+                    log.Module == "ConfiguracionBodegas" &&
+                    log.UserName == "juan.zapata" &&
+                    log.Description == "Se reactivó la sección Pasillo 1 en la bodega o punto de venta No perecederos.")),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturnOk_WhenNewAssignmentIsCreated()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.Success,
+                    SolutionCenterName = "No perecederos",
+                    SectionName = "Pasillo 1"
+                });
+
+            var result = await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                .AssignExistingSection(1, 2);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(ok.Value);
+
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Sección asignada correctamente.", response.Message);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.Is<CreateLogDto>(log =>
+                    log.Action == "Crear" &&
+                    log.Module == "ConfiguracionBodegas" &&
+                    log.UserName == "juan.zapata" &&
+                    log.Description == "Se asignó la sección Pasillo 1 a la bodega o punto de venta No perecederos.")),
+                Times.Once);
+            _solutionCenterApplicationMock.Verify(
+                x => x.CreateSectionConfiguration(
+                    It.IsAny<long>(), It.IsAny<CreateSectionConfigurationDto>(), It.IsAny<string>()),
+                Times.Never);
+            _solutionCenterApplicationMock.Verify(
+                x => x.AddProductToSection(
+                    It.IsAny<long>(), It.IsAny<long>(), It.IsAny<AddSectionProductDto>(), It.IsAny<string>()),
+                Times.Never);
+        }
+
+        [Fact]
+        public async Task AssignExistingSection_ShouldReturn500_WhenApplicationThrowsException()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.AssignExistingSection(1, 2))
+                .ThrowsAsync(new Exception("Error de prueba"));
+
+            var result = await _controller.WithIdentity()
+                .AssignExistingSection(1, 2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+
+            Assert.Equal(500, objectResult.StatusCode);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Ocurrió un error al asignar la sección.", response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        // =========================================================
+        // UPDATE SECTION ASSIGNMENT STATUS
+        // =========================================================
+
+        [Fact]
+        public async Task UpdateSectionAssignmentStatus_ShouldReturnOk_WhenUpdated()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.UpdateSectionAssignmentStatus(1, 2, false))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.Success,
+                    SolutionCenterName = "No perecederos",
+                    SectionName = "Pasillo 1"
+                });
+
+            var result = await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                .UpdateSectionAssignmentStatus(1, 2, new UpdateStatusDto { IsActive = false });
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(ok.Value);
+
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Estado de la asignación actualizado correctamente.", response.Message);
+            _solutionCenterApplicationMock.Verify(x => x.UpdateSectionAssignmentStatus(1, 2, false), Times.Once);
+            _solutionCenterApplicationMock.Verify(
+                x => x.UpdateSectionStatus(It.IsAny<long>(), It.IsAny<bool>()), Times.Never);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.Is<CreateLogDto>(log =>
+                    log.Action == "Actualizar" &&
+                    log.Module == "ConfiguracionBodegas" &&
+                    log.UserName == "juan.zapata" &&
+                    log.Description == "Se inactivó la asignación de la sección Pasillo 1 en la bodega o punto de venta No perecederos.")),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateSectionAssignmentStatus_ShouldReturnForbidden_WhenUserLoginClaimIsMissing()
+        {
+            var result = await _controller.WithIdentity(userLogin: null)
+                .UpdateSectionAssignmentStatus(1, 2, new UpdateStatusDto { IsActive = false });
+
+            var forbidden = Assert.IsType<ObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(forbidden.Value);
+
+            Assert.Equal(403, forbidden.StatusCode);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("El token no contiene un userLogin válido.", response.Message);
+            _solutionCenterApplicationMock.Verify(
+                x => x.UpdateSectionAssignmentStatus(It.IsAny<long>(), It.IsAny<long>(), It.IsAny<bool>()),
+                Times.Never);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task UpdateSectionAssignmentStatus_ShouldReturnNotFound_WhenAssignmentDoesNotExist()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.UpdateSectionAssignmentStatus(1, 2, false))
+                .ReturnsAsync(new SolutionCenterSectionResultDto
+                {
+                    Status = SolutionCenterSectionStatus.AssignmentNotFound
+                });
+
+            var result = await _controller.WithIdentity()
+                .UpdateSectionAssignmentStatus(1, 2, new UpdateStatusDto { IsActive = false });
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(notFound.Value);
+
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La sección no está asignada a la bodega o punto de venta.", response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task UpdateSectionAssignmentStatus_ShouldReturn500_WhenApplicationThrowsException()
+        {
+            _solutionCenterApplicationMock
+                .Setup(x => x.UpdateSectionAssignmentStatus(1, 2, false))
+                .ThrowsAsync(new Exception("Error de prueba"));
+
+            var result = await _controller.WithIdentity()
+                .UpdateSectionAssignmentStatus(1, 2, new UpdateStatusDto { IsActive = false });
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+
+            Assert.Equal(500, objectResult.StatusCode);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Ocurrió un error al actualizar el estado de la asignación.", response.Message);
+            _logApplicationMock.Verify(x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
+        }
+
+        // =========================================================
         // GET SOLUTION CENTERS
         // =========================================================
 
         [Fact]
-        public async Task GetSolutionCenters_ShouldReturnBadRequest_WhenRoleIsEmpty()
+        public async Task GetSolutionCenters_ShouldReturnForbidden_WhenRoleClaimIsEmpty()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "")
                     .GetSolutionCenters(
-                        "",
-                        1,
-                        10);
+                    1,
+                    10);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             _solutionCenterApplicationMock.Verify(
                 x => x.GetPagedSolutionCenters(
@@ -676,18 +989,17 @@ namespace Inventory.Test.Controllers
             int take)
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetSolutionCenters(
-                        "COSTOS",
-                        page,
-                        take);
+                    page,
+                    take);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task GetSolutionCenters_ShouldReturnBadRequest_WhenRoleIsInvalid()
+        public async Task GetSolutionCenters_ShouldReturnForbidden_WhenRoleIsInvalid()
         {
             _solutionCenterApplicationMock
                 .Setup(x =>
@@ -699,22 +1011,22 @@ namespace Inventory.Test.Controllers
                     (PagedDto<SolutionCenterListDto>?)null);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "INVALIDO")
                     .GetSolutionCenters(
-                        "INVALIDO",
-                        1,
-                        10);
+                    1,
+                    10);
 
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(
-                    result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
                 Assert.IsType<ResponseApi>(
-                    badRequest.Value);
+                    forbidden.Value);
 
             Assert.Equal(
-                "El rol enviado no es válido.",
+                "El rol del token no tiene permisos para esta consulta.",
                 response.Message);
         }
 
@@ -742,11 +1054,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(paged);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetSolutionCenters(
-                        "COSTOS",
-                        1,
-                        10);
+                    1,
+                    10);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -791,11 +1102,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(paged);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetSolutionCenters(
-                        "COSTOS",
-                        1,
-                        10);
+                    1,
+                    10);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -827,11 +1137,10 @@ namespace Inventory.Test.Controllers
                         "Error de prueba"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetSolutionCenters(
-                        "COSTOS",
-                        1,
-                        10);
+                    1,
+                    10);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -950,11 +1259,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenterStatus(
-                        0,
-                        request,
-                        "juan.zapata");
+                    0,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -964,18 +1272,17 @@ namespace Inventory.Test.Controllers
         public async Task UpdateSolutionCenterStatus_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenterStatus(
-                        1,
-                        null!,
-                        "juan.zapata");
+                    1,
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task UpdateSolutionCenterStatus_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task UpdateSolutionCenterStatus_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new UpdateStatusDto
@@ -984,14 +1291,14 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .UpdateSolutionCenterStatus(
-                        1,
-                        request,
-                        "");
+                    1,
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1010,11 +1317,10 @@ namespace Inventory.Test.Controllers
                     (SolutionCenterDetailDto?)null);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenterStatus(
-                        999,
-                        request,
-                        "juan.zapata");
+                    999,
+                    request);
 
             Assert.IsType<NotFoundObjectResult>(
                 result);
@@ -1049,11 +1355,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenterStatus(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             Assert.IsType<NotFoundObjectResult>(
                 result);
@@ -1087,11 +1392,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
                     .UpdateSolutionCenterStatus(
-                        1,
-                        request,
-                        "  juan.zapata  ");
+                    1,
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -1136,11 +1440,10 @@ namespace Inventory.Test.Controllers
                         "Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenterStatus(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -1165,11 +1468,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSectionStatus(
-                        0,
-                        request,
-                        "juan.zapata");
+                    0,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1179,18 +1481,17 @@ namespace Inventory.Test.Controllers
         public async Task UpdateSectionStatus_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSectionStatus(
-                        2,
-                        null!,
-                        "juan.zapata");
+                    2,
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task UpdateSectionStatus_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task UpdateSectionStatus_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new UpdateStatusDto
@@ -1199,14 +1500,14 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .UpdateSectionStatus(
-                        2,
-                        request,
-                        "");
+                    2,
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1226,11 +1527,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSectionStatus(
-                        2,
-                        request,
-                        "juan.zapata");
+                    2,
+                    request);
 
             Assert.IsType<NotFoundObjectResult>(
                 result);
@@ -1258,11 +1558,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSectionStatus(
-                        2,
-                        request,
-                        "juan.zapata");
+                    2,
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -1306,11 +1605,10 @@ namespace Inventory.Test.Controllers
                         "Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSectionStatus(
-                        2,
-                        request,
-                        "juan.zapata");
+                    2,
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -1336,12 +1634,11 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        0,
-                        2,
-                        request,
-                        "juan.zapata");
+                    0,
+                    2,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1358,12 +1655,11 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        1,
-                        0,
-                        request,
-                        "juan.zapata");
+                    1,
+                    0,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1373,12 +1669,11 @@ namespace Inventory.Test.Controllers
         public async Task AddProductToSection_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        1,
-                        2,
-                        null!,
-                        "juan.zapata");
+                    1,
+                    2,
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1395,12 +1690,11 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        1,
-                        2,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1417,19 +1711,18 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        1,
-                        2,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task AddProductToSection_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task AddProductToSection_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new AddSectionProductDto
@@ -1439,15 +1732,15 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .AddProductToSection(
-                        1,
-                        2,
-                        request,
-                        "");
+                    1,
+                    2,
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1465,16 +1758,15 @@ namespace Inventory.Test.Controllers
                     x.AddProductToSection(
                         1,
                         2,
-                        request))
+                        request, "juan.zapata"))
                 .ReturnsAsync(0);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        1,
-                        2,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1492,9 +1784,7 @@ namespace Inventory.Test.Controllers
                 new AddSectionProductDto
                 {
                     ProductId = 10,
-                    Position = 3,
-                    CreatedBy =
-                        "fake-user"
+                    Position = 3
                 };
 
             _solutionCenterApplicationMock
@@ -1502,16 +1792,15 @@ namespace Inventory.Test.Controllers
                     x.AddProductToSection(
                         1,
                         2,
-                        request))
+                        request, "juan.zapata"))
                 .ReturnsAsync(100);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
                     .AddProductToSection(
-                        1,
-                        2,
-                        request,
-                        "  juan.zapata  ");
+                    1,
+                    2,
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -1524,9 +1813,9 @@ namespace Inventory.Test.Controllers
             Assert.True(
                 response.IsSuccess);
 
-            Assert.Equal(
-                "juan.zapata",
-                request.CreatedBy);
+            _solutionCenterApplicationMock.Verify(
+                x => x.AddProductToSection(1, 2, request, "juan.zapata"),
+                Times.Once);
 
             _logApplicationMock.Verify(
                 x => x.CreateLog(
@@ -1558,18 +1847,17 @@ namespace Inventory.Test.Controllers
                     x.AddProductToSection(
                         1,
                         2,
-                        request))
+                        request, "juan.zapata"))
                 .ThrowsAsync(
                     new Exception(
                         "Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .AddProductToSection(
-                        1,
-                        2,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -1594,13 +1882,12 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateProductOrder(
-                        0,
-                        2,
-                        3,
-                        request,
-                        "juan.zapata");
+                    0,
+                    2,
+                    3,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1610,13 +1897,12 @@ namespace Inventory.Test.Controllers
         public async Task UpdateProductOrder_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateProductOrder(
-                        1,
-                        2,
-                        3,
-                        null!,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3,
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1632,20 +1918,19 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateProductOrder(
-                        1,
-                        2,
-                        3,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task UpdateProductOrder_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task UpdateProductOrder_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new UpdateProductOrderDto
@@ -1654,16 +1939,16 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .UpdateProductOrder(
-                        1,
-                        2,
-                        3,
-                        request,
-                        "");
+                    1,
+                    2,
+                    3,
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1685,13 +1970,12 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateProductOrder(
-                        1,
-                        2,
-                        3,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1716,13 +2000,12 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateProductOrder(
-                        1,
-                        2,
-                        3,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3,
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -1770,13 +2053,12 @@ namespace Inventory.Test.Controllers
                         "Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateProductOrder(
-                        1,
-                        2,
-                        3,
-                        request,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3,
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -1795,30 +2077,29 @@ namespace Inventory.Test.Controllers
         public async Task DeleteProductFromSection_ShouldReturnBadRequest_WhenIdsAreInvalid()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .DeleteProductFromSection(
-                        0,
-                        2,
-                        3,
-                        "juan.zapata");
+                    0,
+                    2,
+                    3);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
         }
 
         [Fact]
-        public async Task DeleteProductFromSection_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task DeleteProductFromSection_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .DeleteProductFromSection(
-                        1,
-                        2,
-                        3,
-                        "");
+                    1,
+                    2,
+                    3);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1833,12 +2114,11 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .DeleteProductFromSection(
-                        1,
-                        2,
-                        3,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3);
 
             var badRequest =
                 Assert.IsType<BadRequestObjectResult>(
@@ -1853,8 +2133,7 @@ namespace Inventory.Test.Controllers
 
             Assert.Equal(
                 "No se pudo eliminar el producto de la sección. " +
-                "Verifique que la relación exista y que no sea " +
-                "el último producto de la sección.",
+                "Verifique que el producto pertenezca a una asignación activa del centro y la sección.",
                 response.Message);
         }
 
@@ -1870,12 +2149,11 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
                     .DeleteProductFromSection(
-                        1,
-                        2,
-                        3,
-                        "  juan.zapata  ");
+                    1,
+                    2,
+                    3);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -1920,12 +2198,11 @@ namespace Inventory.Test.Controllers
                         "Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .DeleteProductFromSection(
-                        1,
-                        2,
-                        3,
-                        "juan.zapata");
+                    1,
+                    2,
+                    3);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(
@@ -1952,11 +2229,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        0,
-                        request,
-                        "juan.zapata");
+                    0,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1966,11 +2242,10 @@ namespace Inventory.Test.Controllers
         public async Task UpdateSolutionCenter_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        1,
-                        null!,
-                        "juan.zapata");
+                    1,
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -1996,11 +2271,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             var badRequest =
                 Assert.IsType<BadRequestObjectResult>(
@@ -2016,7 +2290,7 @@ namespace Inventory.Test.Controllers
         }
 
         [Fact]
-        public async Task UpdateSolutionCenter_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task UpdateSolutionCenter_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new UpdateSolutionCenterDto
@@ -2027,14 +2301,14 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "")
                     .UpdateSolutionCenter(
-                        1,
-                        request,
-                        "");
+                    1,
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(
-                result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -2055,11 +2329,10 @@ namespace Inventory.Test.Controllers
                     (SolutionCenterDetailDto?)null);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        999,
-                        request,
-                        "juan.zapata");
+                    999,
+                    request);
 
             Assert.IsType<NotFoundObjectResult>(
                 result);
@@ -2096,11 +2369,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
@@ -2141,11 +2413,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
                     .UpdateSolutionCenter(
-                        1,
-                        request,
-                        "  juan.zapata  ");
+                    1,
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(
@@ -2205,11 +2476,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             Assert.IsType<OkObjectResult>(
                 result);
@@ -2241,11 +2511,10 @@ namespace Inventory.Test.Controllers
                         "Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(userLogin: "juan.zapata")
                     .UpdateSolutionCenter(
-                        1,
-                        request,
-                        "juan.zapata");
+                    1,
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(

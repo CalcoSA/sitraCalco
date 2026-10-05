@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using Inventory.Test.Helpers;
+using FluentValidation;
 using FluentValidation.Results;
 using Inventory.Api.Controllers;
 using Inventory.Application.Interfaces;
@@ -131,7 +132,7 @@ namespace Inventory.Test.Controllers
         // =========================================================
 
         [Fact]
-        public async Task Create_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task Create_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new CreateInventoryConfigurationDto
@@ -140,20 +141,22 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.Create(
-                    request,
-                    "");
+                await _controller.WithIdentity(userLogin: "")
+                    .Create(
+                    request);
 
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
-                Assert.IsType<ResponseApi>(badRequest.Value);
+                Assert.IsType<ResponseApi>(forbidden.Value);
 
             Assert.False(response.IsSuccess);
 
             Assert.Equal(
-                "El usuario que ejecuta la operación es obligatorio.",
+                "El token no contiene un userLogin válido.",
                 response.Message);
 
             _inventoryConfigurationApplicationMock.Verify(
@@ -180,9 +183,9 @@ namespace Inventory.Test.Controllers
                         "Nombre obligatorio."));
 
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             var badRequest =
                 Assert.IsType<BadRequestObjectResult>(result);
@@ -208,9 +211,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(0);
 
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             var badRequest =
                 Assert.IsType<BadRequestObjectResult>(result);
@@ -237,9 +240,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(1);
 
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -276,9 +279,9 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -297,10 +300,10 @@ namespace Inventory.Test.Controllers
                 new CreateInventoryConfigurationAssignmentsDto();
 
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .CreateAssignments(
                     0,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -309,27 +312,29 @@ namespace Inventory.Test.Controllers
         public async Task CreateAssignments_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .CreateAssignments(
                     1,
-                    null!,
-                    "juan.zapata");
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task CreateAssignments_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task CreateAssignments_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new CreateInventoryConfigurationAssignmentsDto();
 
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "")
+                    .CreateAssignments(
                     1,
-                    request,
-                    "");
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -348,10 +353,10 @@ namespace Inventory.Test.Controllers
                         "Asignaciones inválidas."));
 
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .CreateAssignments(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -367,10 +372,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(0);
 
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .CreateAssignments(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -386,10 +391,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(2);
 
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .CreateAssignments(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -418,10 +423,10 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.CreateAssignments(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .CreateAssignments(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -651,35 +656,816 @@ namespace Inventory.Test.Controllers
         }
 
         // =========================================================
+        // AVAILABLE INVENTORY CONFIGURATIONS
+        // =========================================================
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturn400_WhenIdIsInvalid(long solutionCenterId)
+        {
+            _controller.WithIdentity();
+
+            var result = await _controller.GetAvailableInventoryConfigurations(solutionCenterId);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<BadRequestObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturn403_WhenRoleClaimIsMissingOrEmpty(string? role)
+        {
+            _controller.WithIdentity(role: role);
+            _controller.Request.QueryString = new QueryString("?role=ADMINISTRADOR");
+            _controller.Request.Headers["role"] = "ADMINISTRADOR";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"role":"ADMINISTRADOR"}"""));
+
+            var result = await _controller.GetAvailableInventoryConfigurations(2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.Equal("El token no contiene un nameRole válido.", response.Message);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturn404_WhenApplicationReportsMissingCenter()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = true,
+                    Data = null
+                });
+
+            var result = await _controller.GetAvailableInventoryConfigurations(2);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<NotFoundObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La bodega o punto de venta no existe.", response.Message);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturn403_WhenApplicationDeniesAccess(bool isValidRole)
+        {
+            _controller.WithIdentity(role: "ALMACEN");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "ALMACEN"))
+                .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
+                {
+                    IsValidRole = isValidRole,
+                    IsAllowed = false
+                });
+
+            var result = await _controller.GetAvailableInventoryConfigurations(2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(isValidRole
+                ? "El rol no tiene permisos para consultar este centro."
+                : "El rol del token no tiene permisos para esta consulta.", response.Message);
+        }
+
+        [Fact]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturn200WithIsSuccessFalse_WhenListIsEmpty()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = true,
+                    Data = new List<AvailableInventoryConfigurationDto>()
+                });
+
+            var result = await _controller.GetAvailableInventoryConfigurations(2);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("No hay inventarios disponibles para este centro en la fecha actual.", response.Message);
+            Assert.Empty(Assert.IsType<List<AvailableInventoryConfigurationDto>>(response.Result));
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(3)]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturnApplicationList_WhenRecordsExist(int count)
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            var configurations = Enumerable.Range(1, count)
+                .Select(id => new AvailableInventoryConfigurationDto
+                {
+                    InventoryConfigurationId = id,
+                    InventoryConfigurationName = $"Inventario {id}"
+                }).ToList();
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = true,
+                    Data = configurations
+                });
+
+            var result = await _controller.GetAvailableInventoryConfigurations(2);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Inventarios disponibles consultados correctamente.", response.Message);
+            Assert.Same(configurations, response.Result);
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData("ALMACEN")]
+        [InlineData("Administrador")]
+        public async Task GetAvailableInventoryConfigurations_ShouldUseOnlyClaimAndRoute_IgnoringSuppliedRoleUserAndDate(string role)
+        {
+            _controller.WithIdentity(role: role);
+            _controller.Request.QueryString = new QueryString(
+                "?role=SUPLANTADO&userLogin=otro&fecha=2099-01-01&dia=Lunes");
+            _controller.Request.Headers["role"] = "SUPLANTADO";
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.ContentType = "application/json";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"role":"SUPLANTADO","userLogin":"otro","fecha":"2099-01-01","dia":"Lunes"}"""));
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, role))
+                .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = true,
+                    Data = new List<AvailableInventoryConfigurationDto>()
+                });
+
+            Assert.IsType<OkObjectResult>(await _controller.GetAvailableInventoryConfigurations(2));
+
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventoryConfigurations(2, role), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetAvailableInventoryConfigurations_ShouldReturn500_WhenApplicationThrows()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .ThrowsAsync(new InvalidOperationException("Detalle interno del error."));
+
+            var result = await _controller.GetAvailableInventoryConfigurations(2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(500, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Ocurrió un error al consultar los inventarios disponibles.", response.Message);
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        // =========================================================
+        // AVAILABLE INVENTORY SECTIONS
+        // =========================================================
+
+        private static AvailableInventorySectionsResultDto CreateAvailableSectionsResult()
+        {
+            return new AvailableInventorySectionsResultDto
+            {
+                IsValidRole = true,
+                IsAllowed = true,
+                SolutionCenterExists = true,
+                ConfigurationExists = true,
+                IsAvailable = true
+            };
+        }
+
+        [Theory]
+        [InlineData(0, 1)]
+        [InlineData(-1, 1)]
+        [InlineData(2, 0)]
+        [InlineData(2, -1)]
+        public async Task GetAvailableInventorySections_ShouldReturn400_WhenEitherIdIsInvalid(
+            long solutionCenterId, long inventoryConfigurationId)
+        {
+            _controller.WithIdentity();
+
+            var result = await _controller.GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<BadRequestObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(solutionCenterId <= 0
+                ? "El identificador de la bodega o punto de venta debe ser mayor a cero."
+                : "El identificador de la configuración de inventario debe ser mayor a cero.", response.Message);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task GetAvailableInventorySections_ShouldReturn403_WhenRoleClaimIsMissingOrEmpty(string? role)
+        {
+            _controller.WithIdentity(role: role);
+            _controller.Request.QueryString = new QueryString("?role=ADMINISTRADOR");
+            _controller.Request.Headers["role"] = "ADMINISTRADOR";
+            _controller.Request.ContentType = "application/json";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"role":"ADMINISTRADOR"}"""));
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("El token no contiene un nameRole válido.", response.Message);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetAvailableInventorySections_ShouldReturn404_WhenApplicationReportsMissingCenter()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .ReturnsAsync(new AvailableInventorySectionsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = true,
+                    SolutionCenterExists = false
+                });
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<NotFoundObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La bodega o punto de venta no existe.", response.Message);
+        }
+
+        [Fact]
+        public async Task GetAvailableInventorySections_ShouldReturn404_WhenApplicationReportsMissingConfiguration()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .ReturnsAsync(new AvailableInventorySectionsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = true,
+                    SolutionCenterExists = true,
+                    ConfigurationExists = false
+                });
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<NotFoundObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La configuración de inventario no existe.", response.Message);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task GetAvailableInventorySections_ShouldReturn403_WhenApplicationDeniesAccess(bool isValidRole)
+        {
+            _controller.WithIdentity(role: "ALMACEN");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "ALMACEN"))
+                .ReturnsAsync(new AvailableInventorySectionsResultDto
+                {
+                    IsValidRole = isValidRole,
+                    IsAllowed = false
+                });
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(isValidRole
+                ? "El rol no tiene permisos para consultar este centro."
+                : "El rol del token no tiene permisos para esta consulta.", response.Message);
+        }
+
+        [Fact]
+        public async Task GetAvailableInventorySections_ShouldReturn404_WhenConfigurationIsUnavailable()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            var applicationResult = CreateAvailableSectionsResult();
+            applicationResult.IsAvailable = false;
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<NotFoundObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("La configuración de inventario no está disponible para este centro.", response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+        }
+
+        [Fact]
+        public async Task GetAvailableInventorySections_ShouldReturn200WithIsSuccessFalse_WhenListIsEmpty()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .ReturnsAsync(CreateAvailableSectionsResult());
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("No hay secciones disponibles para esta configuración.", response.Message);
+            Assert.Empty(Assert.IsType<List<AvailableInventorySectionDto>>(response.Result));
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(3)]
+        public async Task GetAvailableInventorySections_ShouldReturnApplicationList_WhenRecordsExist(int count)
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            var applicationResult = CreateAvailableSectionsResult();
+            applicationResult.Data = Enumerable.Range(1, count)
+                .Select(id => new AvailableInventorySectionDto
+                {
+                    SectionId = id,
+                    SectionName = $"Sección {id}"
+                }).ToList();
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Secciones disponibles consultadas correctamente.", response.Message);
+            Assert.Same(applicationResult.Data, response.Result);
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetAvailableInventorySections_ShouldReturn500_WhenApplicationThrows()
+        {
+            _controller.WithIdentity(role: "COSTOS");
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .ThrowsAsync(new InvalidOperationException("Detalle interno del error."));
+
+            var result = await _controller.GetAvailableInventorySections(2, 1);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(500, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Ocurrió un error al consultar las secciones disponibles.", response.Message);
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData("ALMACEN")]
+        [InlineData("Administrador")]
+        public async Task GetAvailableInventorySections_ShouldUseOnlyClaimAndRoute_IgnoringAlternativeInputs(string role)
+        {
+            _controller.WithIdentity(role: role);
+            _controller.Request.QueryString = new QueryString(
+                "?role=SUPLANTADO&userLogin=otro&sectionId=99&fecha=2099-01-01&dia=Lunes");
+            _controller.Request.Headers["role"] = "SUPLANTADO";
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.ContentType = "application/json";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"role":"SUPLANTADO","userLogin":"otro","sectionId":99,"fecha":"2099-01-01","dia":"Lunes"}"""));
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventorySections(2, 1, role))
+                .ReturnsAsync(CreateAvailableSectionsResult());
+
+            Assert.IsType<OkObjectResult>(await _controller.GetAvailableInventorySections(2, 1));
+
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventorySections(2, 1, role), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        // =========================================================
+        // AVAILABLE INVENTORY PRODUCTS
+        // =========================================================
+
+        private static AvailableInventoryProductsResultDto CreateAvailableProductsResult(int page = 1, int take = 20)
+        {
+            return new AvailableInventoryProductsResultDto
+            {
+                IsValidRole = true,
+                IsAllowed = true,
+                HasDetailPermission = true,
+                SolutionCenterExists = true,
+                ConfigurationExists = true,
+                IsAvailable = true,
+                IsSectionAvailable = true,
+                Data = new PagedDto<AvailableInventoryProductDto>
+                {
+                    Page = page,
+                    Take = take
+                }
+            };
+        }
+
+        [Theory]
+        [InlineData(0, 1, 2, "El identificador de la bodega o punto de venta debe ser mayor a cero.")]
+        [InlineData(-1, 1, 2, "El identificador de la bodega o punto de venta debe ser mayor a cero.")]
+        [InlineData(2, 0, 2, "El identificador de la configuración de inventario debe ser mayor a cero.")]
+        [InlineData(2, -1, 2, "El identificador de la configuración de inventario debe ser mayor a cero.")]
+        [InlineData(2, 1, 0, "El identificador de la sección debe ser mayor a cero.")]
+        [InlineData(2, 1, -1, "El identificador de la sección debe ser mayor a cero.")]
+        public async Task GetAvailableInventoryProducts_ShouldReturn400_WhenAnyIdIsInvalid(
+            long solutionCenterId, long inventoryConfigurationId, long sectionId, string expectedMessage)
+        {
+            _controller.WithIdentity();
+
+            var result = await _controller.GetAvailableInventoryProducts(
+                solutionCenterId, inventoryConfigurationId, sectionId);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<BadRequestObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(expectedMessage, response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(0, 20)]
+        [InlineData(-1, 20)]
+        [InlineData(1, 0)]
+        [InlineData(1, -1)]
+        public async Task GetAvailableInventoryProducts_ShouldReturn400_WhenPaginationIsInvalid(int page, int take)
+        {
+            _controller.WithIdentity();
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2, page, take);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<BadRequestObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Page y Take deben ser mayores a cero.", response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task GetAvailableInventoryProducts_ShouldReturn403_WhenRoleClaimIsMissingOrEmpty(string? role)
+        {
+            _controller.WithIdentity(role: role);
+            _controller.Request.QueryString = new QueryString("?role=ADMINISTRADOR&nameRole=ADMINISTRADOR");
+            _controller.Request.Headers["role"] = "ADMINISTRADOR";
+            _controller.Request.Headers["nameRole"] = "ADMINISTRADOR";
+            _controller.Request.ContentType = "application/json";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"role":"ADMINISTRADOR","nameRole":"ADMINISTRADOR"}"""));
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("El token no contiene un nameRole válido.", response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task GetAvailableInventoryProducts_ShouldReturn403_WhenRoleClaimIsAmbiguousOrUnauthenticated(
+            bool isAuthenticated)
+        {
+            _controller.WithIdentity();
+            var claims = new List<System.Security.Claims.Claim>
+            {
+                new System.Security.Claims.Claim("nameRole", "COSTOS")
+            };
+            if (isAuthenticated)
+                claims.Add(new System.Security.Claims.Claim("nameRole", "ADMINISTRADOR"));
+            _controller.HttpContext.User = new System.Security.Claims.ClaimsPrincipal(
+                new System.Security.Claims.ClaimsIdentity(claims, isAuthenticated ? "Bearer" : null));
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("El token no contiene un nameRole válido.", response.Message);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(false, false, false, "El rol del token no tiene permisos para esta consulta.")]
+        [InlineData(true, false, false, "El rol no tiene permisos para consultar este centro.")]
+        [InlineData(true, true, false, "El rol no tiene permisos para consultar el detalle del inventario.")]
+        public async Task GetAvailableInventoryProducts_ShouldReturn403_WhenApplicationDeniesAccess(
+            bool isValidRole, bool isAllowed, bool hasDetailPermission, string expectedMessage)
+        {
+            _controller.WithIdentity();
+            var applicationResult = CreateAvailableProductsResult();
+            applicationResult.IsValidRole = isValidRole;
+            applicationResult.IsAllowed = isAllowed;
+            applicationResult.HasDetailPermission = hasDetailPermission;
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(expectedMessage, response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+        }
+
+        [Theory]
+        [InlineData(false, false, false, false, "La bodega o punto de venta no existe.")]
+        [InlineData(true, false, false, false, "La configuración de inventario no existe.")]
+        [InlineData(true, true, false, false, "La configuración de inventario no está disponible para este centro.")]
+        [InlineData(true, true, true, false, "La sección no está disponible para esta configuración y centro.")]
+        public async Task GetAvailableInventoryProducts_ShouldReturn404_WhenApplicationReportsUnavailableChain(
+            bool solutionCenterExists, bool configurationExists, bool isAvailable, bool isSectionAvailable,
+            string expectedMessage)
+        {
+            _controller.WithIdentity();
+            var applicationResult = CreateAvailableProductsResult();
+            applicationResult.SolutionCenterExists = solutionCenterExists;
+            applicationResult.ConfigurationExists = configurationExists;
+            applicationResult.IsAvailable = isAvailable;
+            applicationResult.IsSectionAvailable = isSectionAvailable;
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<NotFoundObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(expectedMessage, response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+        }
+
+        [Fact]
+        public async Task GetAvailableInventoryProducts_ShouldReturnEmptyPageAndUseDefaults_WhenPaginationIsOmitted()
+        {
+            _controller.WithIdentity();
+            var applicationResult = CreateAvailableProductsResult();
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("No hay productos disponibles para esta sección.", response.Message);
+            var page = Assert.IsType<PagedDto<AvailableInventoryProductDto>>(response.Result);
+            Assert.Same(applicationResult.Data, page);
+            Assert.Empty(page.Items);
+            Assert.Equal(0, page.Total);
+            Assert.Equal(1, page.Page);
+            Assert.Equal(20, page.Take);
+            Assert.Equal(0, page.Pages);
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(3)]
+        public async Task GetAvailableInventoryProducts_ShouldReturnApplicationPageAndForwardPagination_WhenProductsExist(
+            int count)
+        {
+            _controller.WithIdentity();
+            var applicationResult = CreateAvailableProductsResult(page: 2, take: 3);
+            applicationResult.Data.Items = Enumerable.Range(1, count)
+                .Select(id => new AvailableInventoryProductDto
+                {
+                    SolutionCenterProductId = id,
+                    ProductId = id + 10,
+                    ImagePath = null,
+                    Reference = $"REF{id}",
+                    ProductName = $"Producto {id}",
+                    UnitOfMeasure = "Mililitros",
+                    PlanId = "FAC",
+                    SortOrder = id
+                }).ToList();
+            applicationResult.Data.Total = 3 + count;
+            applicationResult.Data.Pages = 2;
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 2, 3))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2, page: 2, take: 3);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Productos de la sección consultados correctamente.", response.Message);
+            var page = Assert.IsType<PagedDto<AvailableInventoryProductDto>>(response.Result);
+            Assert.Same(applicationResult.Data, page);
+            Assert.Equal(count, page.Items.Count());
+            Assert.Equal(3 + count, page.Total);
+            Assert.Equal(2, page.Page);
+            Assert.Equal(3, page.Take);
+            Assert.Equal(2, page.Pages);
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 2, 3), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(
+            "sitracalco_inventory_dev/image/products/10/abc.jpg",
+            "https://storage.googleapis.com/inventory-test/sitracalco_inventory_dev/image/products/10/abc.jpg?X-Goog-Expires=900&X-Goog-Signature=test-signature")]
+        [InlineData(null, null)]
+        public async Task GetAvailableInventoryProducts_ShouldPreserveImageFieldsFromApplication(
+            string? imagePath, string? imageUrl)
+        {
+            _controller.WithIdentity();
+            var applicationResult = CreateAvailableProductsResult();
+            applicationResult.Data.Items = new List<AvailableInventoryProductDto>
+            {
+                new AvailableInventoryProductDto
+                {
+                    SolutionCenterProductId = 3,
+                    ProductId = 10,
+                    ImagePath = imagePath,
+                    ImageUrl = imageUrl,
+                    Reference = "0001901",
+                    ProductName = "Anfora Real Tostado",
+                    UnitOfMeasure = "Mililitros",
+                    PlanId = "FAC",
+                    SortOrder = 1
+                }
+            };
+            applicationResult.Data.Total = 1;
+            applicationResult.Data.Pages = 1;
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .ReturnsAsync(applicationResult);
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Productos de la sección consultados correctamente.", response.Message);
+            var page = Assert.IsType<PagedDto<AvailableInventoryProductDto>>(response.Result);
+            Assert.Same(applicationResult.Data, page);
+            var product = Assert.Single(page.Items);
+            Assert.Equal(imagePath, product.ImagePath);
+            Assert.Equal(imageUrl, product.ImageUrl);
+            Assert.Equal(3, product.SolutionCenterProductId);
+            Assert.Equal(10, product.ProductId);
+            Assert.Equal("0001901", product.Reference);
+            Assert.Equal("Anfora Real Tostado", product.ProductName);
+            Assert.Equal("Mililitros", product.UnitOfMeasure);
+            Assert.Equal("FAC", product.PlanId);
+            Assert.Equal(1, product.SortOrder);
+            Assert.Equal(1, page.Total);
+            Assert.Equal(1, page.Page);
+            Assert.Equal(20, page.Take);
+            Assert.Equal(1, page.Pages);
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData("ALMACEN")]
+        [InlineData("Administrador")]
+        public async Task GetAvailableInventoryProducts_ShouldUseOnlyClaimAndRoute_IgnoringAlternativeInputs(string role)
+        {
+            _controller.WithIdentity(role: role);
+            _controller.Request.QueryString = new QueryString(
+                "?role=SUPLANTADO&nameRole=SUPLANTADO&userLogin=otro&solutionCenterId=99&inventoryConfigurationId=99&sectionId=99&fecha=2099-01-01&dia=Lunes");
+            _controller.Request.Headers["role"] = "SUPLANTADO";
+            _controller.Request.Headers["nameRole"] = "SUPLANTADO";
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.ContentType = "application/json";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"role":"SUPLANTADO","nameRole":"SUPLANTADO","userLogin":"otro","solutionCenterId":99,"inventoryConfigurationId":99,"sectionId":99,"fecha":"2099-01-01","dia":"Lunes"}"""));
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, role, 1, 20))
+                .ReturnsAsync(CreateAvailableProductsResult());
+
+            Assert.IsType<OkObjectResult>(await _controller.GetAvailableInventoryProducts(2, 1, 2));
+
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventoryProducts(2, 1, 2, role, 1, 20), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task GetAvailableInventoryProducts_ShouldReturn500_WhenApplicationThrows()
+        {
+            _controller.WithIdentity();
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .ThrowsAsync(new InvalidOperationException("Detalle interno del error."));
+
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+
+            var objectResult = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(500, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal("Ocurrió un error al consultar los productos de la sección.", response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        // =========================================================
         // GET CONFIGURATIONS BY SOLUTION CENTER
         // =========================================================
+
+        [Fact]
+        public async Task RoleQueries_ShouldUseClaims_WhenQueryContainsAnotherRole()
+        {
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetInventoryConfigurationsBySolutionCenterId(1, "ALMACEN"))
+                .ReturnsAsync(new SolutionCenterInventoryConfigurationsResultDto
+                {
+                    IsValidRole = true,
+                    IsAllowed = false
+                });
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetInventoryConfigurationById(1, "ALMACEN"))
+                .ReturnsAsync(new InventoryConfigurationByIdResultDto
+                {
+                    IsValidRole = true,
+                    Data = null
+                });
+            _controller.WithIdentity(role: "ALMACEN");
+            _controller.Request.QueryString = new QueryString("?role=ADMINISTRADOR");
+
+            var byCenter = await _controller.GetInventoryConfigurationsBySolutionCenterId(1);
+            var byId = await _controller.GetInventoryConfigurationById(1);
+
+            Assert.Equal(403, Assert.IsType<ObjectResult>(byCenter).StatusCode);
+            Assert.IsType<NotFoundObjectResult>(byId);
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetInventoryConfigurationsBySolutionCenterId(1, "ALMACEN"), Times.Once);
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetInventoryConfigurationById(1, "ALMACEN"), Times.Once);
+            _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
+        }
 
         [Fact]
         public async Task GetConfigurationsBySolutionCenter_ShouldReturnBadRequest_WhenIdIsInvalid()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        0,
-                        "COSTOS");
+                    0);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task GetConfigurationsBySolutionCenter_ShouldReturnBadRequest_WhenRoleIsEmpty()
+        public async Task GetConfigurationsBySolutionCenter_ShouldReturnForbidden_WhenRoleClaimIsEmpty()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        1,
-                        "");
+                    1);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
-        public async Task GetConfigurationsBySolutionCenter_ShouldReturnBadRequest_WhenRoleIsInvalid()
+        public async Task GetConfigurationsBySolutionCenter_ShouldReturnForbidden_WhenRoleIsInvalid()
         {
             var applicationResult =
                 new SolutionCenterInventoryConfigurationsResultDto
@@ -696,12 +1482,13 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "INVALIDO")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        1,
-                        "INVALIDO");
+                    1);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -722,10 +1509,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "ALMACEN")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        2,
-                        "ALMACEN");
+                    2);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -754,10 +1540,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        999,
-                        "COSTOS");
+                    999);
 
             Assert.IsType<NotFoundObjectResult>(result);
         }
@@ -788,10 +1573,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        1,
-                        "COSTOS");
+                    1);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -814,10 +1598,9 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationsBySolutionCenterId(
-                        1,
-                        "COSTOS");
+                    1);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -833,28 +1616,28 @@ namespace Inventory.Test.Controllers
         public async Task GetInventoryConfigurationById_ShouldReturnBadRequest_WhenIdIsInvalid()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationById(
-                        0,
-                        "COSTOS");
+                    0);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task GetInventoryConfigurationById_ShouldReturnBadRequest_WhenRoleIsEmpty()
+        public async Task GetInventoryConfigurationById_ShouldReturnForbidden_WhenRoleClaimIsEmpty()
         {
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "")
                     .GetInventoryConfigurationById(
-                        1,
-                        "");
+                    1);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
-        public async Task GetInventoryConfigurationById_ShouldReturnBadRequest_WhenRoleIsInvalid()
+        public async Task GetInventoryConfigurationById_ShouldReturnForbidden_WhenRoleIsInvalid()
         {
             var applicationResult =
                 new InventoryConfigurationByIdResultDto
@@ -871,12 +1654,13 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "INVALIDO")
                     .GetInventoryConfigurationById(
-                        1,
-                        "INVALIDO");
+                    1);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -897,10 +1681,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationById(
-                        999,
-                        "COSTOS");
+                    999);
 
             Assert.IsType<NotFoundObjectResult>(result);
         }
@@ -930,10 +1713,9 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(applicationResult);
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationById(
-                        1,
-                        "COSTOS");
+                    1);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -956,10 +1738,9 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller
+                await _controller.WithIdentity(role: "COSTOS")
                     .GetInventoryConfigurationById(
-                        1,
-                        "COSTOS");
+                    1);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -981,12 +1762,12 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateAssignmentStatus(
                     0,
                     1,
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -995,18 +1776,18 @@ namespace Inventory.Test.Controllers
         public async Task UpdateAssignmentStatus_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateAssignmentStatus(
                     1,
                     1,
                     1,
-                    null!,
-                    "juan.zapata");
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task UpdateAssignmentStatus_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task UpdateAssignmentStatus_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new UpdateInventoryConfigurationAssignmentStatusDto
@@ -1015,14 +1796,16 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "")
+                    .UpdateAssignmentStatus(
                     1,
                     1,
                     1,
-                    request,
-                    "");
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1041,12 +1824,12 @@ namespace Inventory.Test.Controllers
                         "Estado obligatorio."));
 
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateAssignmentStatus(
                     1,
                     1,
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1070,12 +1853,12 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateAssignmentStatus(
                     1,
                     2,
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<NotFoundObjectResult>(result);
         }
@@ -1099,12 +1882,12 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateAssignmentStatus(
                     1,
                     2,
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -1145,12 +1928,12 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.UpdateAssignmentStatus(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateAssignmentStatus(
                     1,
                     2,
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -1172,10 +1955,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateInventoryConfiguration(
                     0,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1184,16 +1967,16 @@ namespace Inventory.Test.Controllers
         public async Task UpdateInventoryConfiguration_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateInventoryConfiguration(
                     1,
-                    null!,
-                    "juan.zapata");
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task UpdateInventoryConfiguration_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task UpdateInventoryConfiguration_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new UpdateInventoryConfigurationDto
@@ -1202,12 +1985,14 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "")
+                    .UpdateInventoryConfiguration(
                     1,
-                    request,
-                    "");
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1229,10 +2014,10 @@ namespace Inventory.Test.Controllers
                         "Nombre obligatorio."));
 
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateInventoryConfiguration(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1254,10 +2039,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateInventoryConfiguration(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1281,10 +2066,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateInventoryConfiguration(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -1319,10 +2104,10 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.UpdateInventoryConfiguration(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .UpdateInventoryConfiguration(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -1347,10 +2132,10 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .AddDays(
                     0,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1359,16 +2144,16 @@ namespace Inventory.Test.Controllers
         public async Task AddDays_ShouldReturnBadRequest_WhenRequestIsNull()
         {
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .AddDays(
                     1,
-                    null!,
-                    "juan.zapata");
+                    null!);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task AddDays_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task AddDays_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var request =
                 new AddInventoryConfigurationDaysDto
@@ -1380,12 +2165,14 @@ namespace Inventory.Test.Controllers
                 };
 
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "")
+                    .AddDays(
                     1,
-                    request,
-                    "");
+                    request);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1407,10 +2194,10 @@ namespace Inventory.Test.Controllers
                         "Debe enviar al menos un día."));
 
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .AddDays(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1435,10 +2222,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(0);
 
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .AddDays(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1464,10 +2251,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(2);
 
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .AddDays(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -1509,10 +2296,10 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.AddDays(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .AddDays(
                     1,
-                    request,
-                    "juan.zapata");
+                    request);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -1528,10 +2315,10 @@ namespace Inventory.Test.Controllers
         public async Task DeleteDay_ShouldReturnBadRequest_WhenIdIsInvalid()
         {
             var result =
-                await _controller.DeleteDay(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteDay(
                     0,
-                    "Martes",
-                    "juan.zapata");
+                    "Martes");
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
@@ -1540,24 +2327,26 @@ namespace Inventory.Test.Controllers
         public async Task DeleteDay_ShouldReturnBadRequest_WhenDayIsEmpty()
         {
             var result =
-                await _controller.DeleteDay(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteDay(
                     1,
-                    "",
-                    "juan.zapata");
+                    "");
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task DeleteDay_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task DeleteDay_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var result =
-                await _controller.DeleteDay(
+                await _controller.WithIdentity(userLogin: "")
+                    .DeleteDay(
                     1,
-                    "Martes",
-                    "");
+                    "Martes");
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1571,10 +2360,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller.DeleteDay(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteDay(
                     1,
-                    "Martes",
-                    "juan.zapata");
+                    "Martes");
 
             Assert.IsType<NotFoundObjectResult>(result);
         }
@@ -1590,10 +2379,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller.DeleteDay(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteDay(
                     1,
-                    "Martes",
-                    "juan.zapata");
+                    "Martes");
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -1625,10 +2414,10 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.DeleteDay(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteDay(
                     1,
-                    "Martes",
-                    "juan.zapata");
+                    "Martes");
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -1644,26 +2433,28 @@ namespace Inventory.Test.Controllers
         public async Task DeleteAssignment_ShouldReturnBadRequest_WhenIdsAreInvalid()
         {
             var result =
-                await _controller.DeleteAssignment(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignment(
                     0,
                     2,
-                    2,
-                    "juan.zapata");
+                    2);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task DeleteAssignment_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task DeleteAssignment_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var result =
-                await _controller.DeleteAssignment(
+                await _controller.WithIdentity(userLogin: "")
+                    .DeleteAssignment(
                     1,
                     2,
-                    2,
-                    "");
+                    2);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1678,11 +2469,11 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(false);
 
             var result =
-                await _controller.DeleteAssignment(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignment(
                     1,
                     2,
-                    2,
-                    "juan.zapata");
+                    2);
 
             Assert.IsType<NotFoundObjectResult>(result);
         }
@@ -1699,11 +2490,11 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(true);
 
             var result =
-                await _controller.DeleteAssignment(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignment(
                     1,
                     2,
-                    2,
-                    "juan.zapata");
+                    2);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -1736,11 +2527,11 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.DeleteAssignment(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignment(
                     1,
                     2,
-                    2,
-                    "juan.zapata");
+                    2);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);
@@ -1756,24 +2547,26 @@ namespace Inventory.Test.Controllers
         public async Task DeleteAssignmentsBySection_ShouldReturnBadRequest_WhenIdsAreInvalid()
         {
             var result =
-                await _controller.DeleteAssignmentsBySection(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignmentsBySection(
                     0,
-                    2,
-                    "juan.zapata");
+                    2);
 
             Assert.IsType<BadRequestObjectResult>(result);
         }
 
         [Fact]
-        public async Task DeleteAssignmentsBySection_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task DeleteAssignmentsBySection_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             var result =
-                await _controller.DeleteAssignmentsBySection(
+                await _controller.WithIdentity(userLogin: "")
+                    .DeleteAssignmentsBySection(
                     1,
-                    2,
-                    "");
+                    2);
 
-            Assert.IsType<BadRequestObjectResult>(result);
+            Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
         }
 
         [Fact]
@@ -1787,10 +2580,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(0);
 
             var result =
-                await _controller.DeleteAssignmentsBySection(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignmentsBySection(
                     1,
-                    2,
-                    "juan.zapata");
+                    2);
 
             Assert.IsType<NotFoundObjectResult>(result);
         }
@@ -1806,10 +2599,10 @@ namespace Inventory.Test.Controllers
                 .ReturnsAsync(2);
 
             var result =
-                await _controller.DeleteAssignmentsBySection(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignmentsBySection(
                     1,
-                    2,
-                    "juan.zapata");
+                    2);
 
             var ok =
                 Assert.IsType<OkObjectResult>(result);
@@ -1843,10 +2636,10 @@ namespace Inventory.Test.Controllers
                 .ThrowsAsync(new Exception("Error"));
 
             var result =
-                await _controller.DeleteAssignmentsBySection(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .DeleteAssignmentsBySection(
                     1,
-                    2,
-                    "juan.zapata");
+                    2);
 
             var objectResult =
                 Assert.IsType<ObjectResult>(result);

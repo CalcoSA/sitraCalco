@@ -1,6 +1,7 @@
 ﻿using Inventory.Domain.Interfaces;
 using Inventory.Infrastructure.Persistance.Data;
 using Inventory.Infrastructure.Persistance.Repositories;
+using Inventory.Infrastructure.Persistance.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,11 +32,14 @@ namespace Inventory.Infrastructure.Persistance.Data
 
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddSingleton<IStorageService, GoogleCloudStorageService>();
             services.AddScoped<ISiesaRepository, SiesaRepository>();
             services.AddScoped<ISolutionCenterRepository,SolutionCenterRepository>();
             services.AddScoped<ILogRepository, LogRepository>();
             services.AddScoped<ISectionRepository, SectionRepository>();
+            services.AddScoped<IPermissionRepository, PermissionRepository>();
             services.AddScoped<IInventoryConfigurationRepository,InventoryConfigurationRepository>();
+            services.AddScoped<IInventoryRepository, InventoryRepository>();
 
             return services;
         }

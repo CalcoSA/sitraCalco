@@ -1,4 +1,5 @@
-﻿using Inventory.Application.Interfaces;
+﻿using Inventory.Api.Extensions;
+using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
 using Microsoft.AspNetCore.Authorization;
@@ -78,9 +79,10 @@ namespace Inventory.Api.Controllers
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> CreateSolutionCenter(
-            [FromBody] CreateSolutionCenterDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] CreateSolutionCenterDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (request is null ||
@@ -99,11 +101,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -168,9 +170,10 @@ namespace Inventory.Api.Controllers
         [HttpPost("{solutionCenterId:long}/sections")]
         public async Task<IActionResult> CreateSectionConfiguration(
             long solutionCenterId,
-            [FromBody] CreateSectionConfigurationDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] CreateSectionConfigurationDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (solutionCenterId <= 0)
@@ -197,11 +200,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -272,23 +275,174 @@ namespace Inventory.Api.Controllers
         }
 
         /// <summary>
-        /// Obtiene el listado paginado de bodegas y puntos de venta según el rol.
+        /// Asigna una sección existente sin copiar productos de otros centros.
         /// </summary>
-        [HttpGet]
-        public async Task<IActionResult> GetSolutionCenters(
-            [FromQuery] string role,
-            [FromQuery] int page = 1,
-            [FromQuery] int take = 10)
+        [HttpPost("{solutionCenterId:long}/sections/{sectionId:long}/assign")]
+        public async Task<IActionResult> AssignExistingSection(long solutionCenterId, long sectionId)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
-                if (string.IsNullOrWhiteSpace(role))
+                if (solutionCenterId <= 0 || sectionId <= 0)
+                    return SectionAssignmentFailure(SolutionCenterSectionStatus.InvalidRequest)!;
+
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+                }
+
+                var result = await _solutionCenterApplication.AssignExistingSection(solutionCenterId, sectionId);
+                var failure = SectionAssignmentFailure(result.Status);
+                if (failure is not null)
+                    return failure;
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Crear",
+                    Module = "ConfiguracionBodegas",
+                    Description = result.WasReactivated
+                        ? $"Se reactivó la sección {result.SectionName} en la bodega o punto de venta {result.SolutionCenterName}."
+                        : $"Se asignó la sección {result.SectionName} a la bodega o punto de venta {result.SolutionCenterName}.",
+                    UserName = userName.Trim()
+                });
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Sección asignada correctamente.",
+                    Result = new { SolutionCenterId = solutionCenterId, SectionId = sectionId, IsActive = true }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al asignar la sección {SectionId} al centro {SolutionCenterId}.", sectionId, solutionCenterId);
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al asignar la sección.",
+                    Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Cambia únicamente el estado de la asignación de una sección a un centro.
+        /// </summary>
+        [HttpPatch("{solutionCenterId:long}/sections/{sectionId:long}/status")]
+        public async Task<IActionResult> UpdateSectionAssignmentStatus(
+            long solutionCenterId,
+            long sectionId,
+            [FromBody] UpdateStatusDto request)
+        {
+            var userName = User.GetUserLogin();
+
+            try
+            {
+                if (solutionCenterId <= 0 || sectionId <= 0)
+                    return SectionAssignmentFailure(SolutionCenterSectionStatus.InvalidRequest)!;
+
+                if (request is null)
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
+                        Message = "La información del estado no es válida.",
+                        Result = new { }
+                    });
+                }
+
+                if (string.IsNullOrWhiteSpace(userName))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+                }
+
+                var result = await _solutionCenterApplication
+                    .UpdateSectionAssignmentStatus(solutionCenterId, sectionId, request.IsActive);
+                var failure = SectionAssignmentFailure(result.Status);
+                if (failure is not null)
+                    return failure;
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Actualizar",
+                    Module = "ConfiguracionBodegas",
+                    Description = request.IsActive
+                        ? $"Se activó la asignación de la sección {result.SectionName} en la bodega o punto de venta {result.SolutionCenterName}."
+                        : $"Se inactivó la asignación de la sección {result.SectionName} en la bodega o punto de venta {result.SolutionCenterName}.",
+                    UserName = userName.Trim()
+                });
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Estado de la asignación actualizado correctamente.",
+                    Result = new { SolutionCenterId = solutionCenterId, SectionId = sectionId, IsActive = request.IsActive }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al actualizar la asignación de la sección {SectionId} al centro {SolutionCenterId}.", sectionId, solutionCenterId);
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al actualizar el estado de la asignación.",
+                    Result = new { }
+                });
+            }
+        }
+
+        private IActionResult? SectionAssignmentFailure(SolutionCenterSectionStatus status)
+        {
+            if (status == SolutionCenterSectionStatus.Success)
+                return null;
+
+            var (statusCode, message) = status switch
+            {
+                SolutionCenterSectionStatus.InvalidRequest => (400, "Los identificadores deben ser mayores a cero."),
+                SolutionCenterSectionStatus.SolutionCenterNotFound => (404, "La bodega o punto de venta no existe."),
+                SolutionCenterSectionStatus.SectionNotFound => (404, "La sección no existe."),
+                SolutionCenterSectionStatus.SectionInactive => (400, "La sección está inactiva en el catálogo. Actívela antes de asignarla o reactivar su asignación."),
+                SolutionCenterSectionStatus.AssignmentNotFound => (404, "La sección no está asignada a la bodega o punto de venta."),
+                SolutionCenterSectionStatus.AlreadyAssigned => (400, "La sección ya está asignada a la bodega o punto de venta."),
+                _ => throw new InvalidOperationException("Resultado de asignación de sección no reconocido.")
+            };
+
+            var response = new ResponseApi { IsSuccess = false, Message = message, Result = new { } };
+            return statusCode == 404 ? NotFound(response) : BadRequest(response);
+        }
+
+        /// <summary>
+        /// Obtiene el listado paginado de bodegas y puntos de venta según el rol.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetSolutionCenters(
+            [FromQuery] int page = 1,
+            [FromQuery] int take = 10)
+        {
+            var role = User.GetRoleName();
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
                         Message =
-                            "El rol es obligatorio.",
+                            "El token no contiene un nameRole válido.",
                         Result = new { }
                     });
                 }
@@ -313,11 +467,11 @@ namespace Inventory.Api.Controllers
 
                 if (solutionCenters is null)
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El rol enviado no es válido.",
+                            "El rol del token no tiene permisos para esta consulta.",
                         Result = new { }
                     });
                 }
@@ -425,9 +579,10 @@ namespace Inventory.Api.Controllers
         [HttpPatch("{solutionCenterId:long}/status")]
         public async Task<IActionResult> UpdateSolutionCenterStatus(
             long solutionCenterId,
-            [FromBody] UpdateStatusDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateStatusDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (solutionCenterId <= 0)
@@ -454,11 +609,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -547,9 +702,10 @@ namespace Inventory.Api.Controllers
         [HttpPatch("sections/{sectionId:long}/status")]
         public async Task<IActionResult> UpdateSectionStatus(
             long sectionId,
-            [FromBody] UpdateStatusDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateStatusDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (sectionId <= 0)
@@ -576,11 +732,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -652,9 +808,10 @@ namespace Inventory.Api.Controllers
         public async Task<IActionResult> AddProductToSection(
             long solutionCenterId,
             long sectionId,
-            [FromBody] AddSectionProductDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] AddSectionProductDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (solutionCenterId <= 0)
@@ -714,25 +871,22 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
-
-                // Mientras AddSectionProductDto conserve CreatedBy,
-                // la fuente real será X-User.
-                request.CreatedBy = userName.Trim();
 
                 var solutionCenterProductId =
                     await _solutionCenterApplication
                         .AddProductToSection(
                             solutionCenterId,
                             sectionId,
-                            request);
+                            request,
+                            userName);
 
                 if (solutionCenterProductId <= 0)
                 {
@@ -804,9 +958,10 @@ namespace Inventory.Api.Controllers
             long solutionCenterId,
             long sectionId,
             long solutionCenterProductId,
-            [FromBody] UpdateProductOrderDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateProductOrderDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (solutionCenterId <= 0 ||
@@ -836,11 +991,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -919,9 +1074,10 @@ namespace Inventory.Api.Controllers
         public async Task<IActionResult> DeleteProductFromSection(
             long solutionCenterId,
             long sectionId,
-            long solutionCenterProductId,
-            [FromHeader(Name = "X-User")] string userName)
+            long solutionCenterProductId)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (solutionCenterId <= 0 ||
@@ -939,11 +1095,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }
@@ -962,8 +1118,7 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "No se pudo eliminar el producto de la sección. " +
-                            "Verifique que la relación exista y que no sea " +
-                            "el último producto de la sección.",
+                            "Verifique que el producto pertenezca a una asignación activa del centro y la sección.",
                         Result = new { }
                     });
                 }
@@ -1019,9 +1174,10 @@ namespace Inventory.Api.Controllers
         [HttpPatch("{solutionCenterId:long}")]
         public async Task<IActionResult> UpdateSolutionCenter(
             long solutionCenterId,
-            [FromBody] UpdateSolutionCenterDto request,
-            [FromHeader(Name = "X-User")] string userName)
+            [FromBody] UpdateSolutionCenterDto request)
         {
+            var userName = User.GetUserLogin();
+
             try
             {
                 if (solutionCenterId <= 0)
@@ -1062,11 +1218,11 @@ namespace Inventory.Api.Controllers
 
                 if (string.IsNullOrWhiteSpace(userName))
                 {
-                    return BadRequest(new ResponseApi
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
                     {
                         IsSuccess = false,
                         Message =
-                            "El usuario que ejecuta la operación es obligatorio.",
+                            "El token no contiene un userLogin válido.",
                         Result = new { }
                     });
                 }

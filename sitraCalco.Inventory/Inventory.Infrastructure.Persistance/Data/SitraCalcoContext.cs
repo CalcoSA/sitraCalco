@@ -17,8 +17,12 @@ namespace Inventory.Infrastructure.Persistance.Data
 
         public virtual DbSet<Section>Sections { get; set; }
 
+        public virtual DbSet<Permission> Permissions { get; set; }
+
         public virtual DbSet<SolutionCenterProduct> SolutionCenterProducts { get; set; }
+        public virtual DbSet<SolutionCenterSection> SolutionCenterSections { get; set; }
         public virtual DbSet<InventoryLog> InventoryLogs { get; set; }
+        public virtual DbSet<InventoryRecord> InventoryRecords { get; set; }
         public virtual DbSet<InventoryConfigurationAssignment>InventoryConfigurationAssignments{ get; set; }
 
         public virtual DbSet<InventoryConfiguration>InventoryConfigurations{ get; set; }

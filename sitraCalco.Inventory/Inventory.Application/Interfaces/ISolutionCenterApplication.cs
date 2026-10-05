@@ -19,7 +19,11 @@ namespace Inventory.Application.Interfaces
 
         Task<bool> UpdateSectionStatus(long sectionId,bool isActive);
 
-        Task<long> AddProductToSection(long solutionCenterId,long sectionId,AddSectionProductDto request);
+        Task<SolutionCenterSectionResultDto> AssignExistingSection(long solutionCenterId,long sectionId);
+
+        Task<SolutionCenterSectionResultDto> UpdateSectionAssignmentStatus(long solutionCenterId,long sectionId,bool isActive);
+
+        Task<long> AddProductToSection(long solutionCenterId,long sectionId,AddSectionProductDto request,string userName);
 
         Task<bool> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
 
