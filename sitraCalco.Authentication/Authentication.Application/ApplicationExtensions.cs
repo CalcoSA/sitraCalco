@@ -18,6 +18,7 @@ namespace Authentication.Application
             services.AddScoped<ISSOSignatureApplication, SSOSignatureApplication>();
             services.AddScoped<IAuthApplication, AuthApplication>();
             services.AddScoped<IWordpressUserApplication, WordpressUserApplication>();
+            services.AddScoped<ILogApplication, LogApplication>();
 
             services.AddScoped<IValidator<CreateRoleDto>, CreateRoleDtoValidator>();
             services.AddScoped<IValidator<UpdateRoleDto>, UpdateRoleDtoValidator>();

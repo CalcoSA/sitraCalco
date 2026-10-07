@@ -13,6 +13,7 @@ namespace Authentication.Infrastructure.Persistance.Data
         public virtual DbSet<Rolemenuoption> Rolemenuoptions { get; set; }
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<Userrole> Userroles { get; set; }
+        public virtual DbSet<AuthenticationLog> AuthenticationLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

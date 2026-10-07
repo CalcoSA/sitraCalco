@@ -1,11 +1,13 @@
 ﻿using Authentication.Application.Interfaces;
 using Authentication.Domain.Responses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Authentication.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class WordpressUserController : ControllerBase
     {
         private readonly IWordpressUserApplication _wordpressUserApplication;

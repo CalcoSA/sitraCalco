@@ -1,4 +1,5 @@
-﻿using FluentValidation;
+﻿using Inventory.Test.Helpers;
+using FluentValidation;
 using FluentValidation.Results;
 using Inventory.Api.Controllers;
 using Inventory.Application.Interfaces;
@@ -347,7 +348,7 @@ namespace Inventory.Test.Controllers
         // =========================================================
 
         [Fact]
-        public async Task Create_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task Create_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             // Arrange
             var request =
@@ -359,24 +360,25 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Create(
-                    request,
-                    "");
+                await _controller.WithIdentity(userLogin: "")
+                    .Create(
+                    request);
 
             // Assert
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(
-                    result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
                 Assert.IsType<ResponseApi>(
-                    badRequest.Value);
+                    forbidden.Value);
 
             Assert.False(
                 response.IsSuccess);
 
             Assert.Equal(
-                "El usuario que ejecuta la operación es obligatorio.",
+                "El token no contiene un userLogin válido.",
                 response.Message);
 
             _sectionApplicationMock.Verify(
@@ -407,9 +409,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             // Assert
             var badRequest =
@@ -451,9 +453,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             // Assert
             var badRequest =
@@ -495,9 +497,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Create(
-                    request,
-                    "  juan.zapata  ");
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                    .Create(
+                    request);
 
             // Assert
             var ok =
@@ -548,9 +550,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Create(
-                    request,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Create(
+                    request);
 
             // Assert
             var objectResult =
@@ -596,10 +598,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     sectionId,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var badRequest =
@@ -625,7 +627,7 @@ namespace Inventory.Test.Controllers
         }
 
         [Fact]
-        public async Task Update_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task Update_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             // Arrange
             var request =
@@ -640,25 +642,26 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "")
+                    .Update(
                     2,
-                    request,
-                    "");
+                    request);
 
             // Assert
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(
-                    result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
                 Assert.IsType<ResponseApi>(
-                    badRequest.Value);
+                    forbidden.Value);
 
             Assert.False(
                 response.IsSuccess);
 
             Assert.Equal(
-                "El usuario que ejecuta la operación es obligatorio.",
+                "El token no contiene un userLogin válido.",
                 response.Message);
         }
 
@@ -685,10 +688,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var badRequest =
@@ -731,10 +734,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     999,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var notFound =
@@ -788,10 +791,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var badRequest =
@@ -844,10 +847,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var ok =
@@ -908,10 +911,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var ok =
@@ -962,10 +965,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var ok =
@@ -1018,10 +1021,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             Assert.IsType<OkObjectResult>(
@@ -1064,10 +1067,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                    .Update(
                     2,
-                    request,
-                    "  juan.zapata  ");
+                    request);
 
             // Assert
             var ok =
@@ -1122,10 +1125,10 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Update(
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Update(
                     2,
-                    request,
-                    "juan.zapata");
+                    request);
 
             // Assert
             var objectResult =
@@ -1160,9 +1163,9 @@ namespace Inventory.Test.Controllers
         {
             // Act
             var result =
-                await _controller.Delete(
-                    sectionId,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Delete(
+                    sectionId);
 
             // Assert
             var badRequest =
@@ -1187,28 +1190,29 @@ namespace Inventory.Test.Controllers
         }
 
         [Fact]
-        public async Task Delete_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task Delete_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             // Act
             var result =
-                await _controller.Delete(
-                    2,
-                    "");
+                await _controller.WithIdentity(userLogin: "")
+                    .Delete(
+                    2);
 
             // Assert
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(
-                    result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
                 Assert.IsType<ResponseApi>(
-                    badRequest.Value);
+                    forbidden.Value);
 
             Assert.False(
                 response.IsSuccess);
 
             Assert.Equal(
-                "El usuario que ejecuta la operación es obligatorio.",
+                "El token no contiene un userLogin válido.",
                 response.Message);
 
             _sectionApplicationMock.Verify(
@@ -1226,9 +1230,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Delete(
-                    999,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Delete(
+                    999);
 
             // Assert
             var notFound =
@@ -1269,9 +1273,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Delete(
-                    2,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Delete(
+                    2);
 
             // Assert
             var badRequest =
@@ -1312,9 +1316,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Delete(
-                    2,
-                    "  juan.zapata  ");
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                    .Delete(
+                    2);
 
             // Assert
             var ok =
@@ -1365,9 +1369,9 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.Delete(
-                    2,
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .Delete(
+                    2);
 
             // Assert
             var objectResult =

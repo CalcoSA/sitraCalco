@@ -96,6 +96,12 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         public async Task<bool> HasAssociations(
             long sectionId)
         {
+            // Una asignación sigue existiendo aunque no tenga productos o esté inactiva.
+            if (await _context.SolutionCenterSections
+                .AsNoTracking()
+                .AnyAsync(item => item.section_id == sectionId))
+                return true;
+
             // Asociación existente de la sección
             // con centros y productos.
             var hasSolutionCenterProducts =

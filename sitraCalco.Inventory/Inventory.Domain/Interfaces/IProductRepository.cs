@@ -14,6 +14,7 @@ namespace Inventory.Domain.Interfaces
         Task<IEnumerable<Product>> GetByIds(IEnumerable<long> productIds);
 
         Task<Product?> GetProductById(long productId);
+        Task<bool> TryUpdateImagePath(long productId, string? expectedImagePath, string? imagePath);
 
 
     }

@@ -1,4 +1,5 @@
-﻿using Inventory.Api.Controllers;
+﻿using Inventory.Test.Helpers;
+using Inventory.Api.Controllers;
 using Inventory.Application.Interfaces;
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Models;
@@ -7,6 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
 using System.Reflection;
+using Inventory.Domain.Options;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 
 namespace Inventory.Test.Controllers
 {
@@ -39,7 +43,295 @@ namespace Inventory.Test.Controllers
                 new ProductController(
                     _productApplicationMock.Object,
                     _logApplicationMock.Object,
-                    _loggerMock.Object);
+                    _loggerMock.Object,
+                    Options.Create(new GoogleCloudStorageOptions()));
+        }
+
+        // =========================================================
+        // PRODUCT IMAGES — Controller HTTP contract only
+        // =========================================================
+
+        private static IFormFile CreateImageFile(string fileName = "producto.jpg", string contentType = "image/jpeg", long length = 3)
+        {
+            var file = new Mock<IFormFile>();
+            file.SetupGet(x => x.FileName).Returns(fileName);
+            file.SetupGet(x => x.ContentType).Returns(contentType);
+            file.SetupGet(x => x.Length).Returns(length);
+            file.Setup(x => x.OpenReadStream()).Returns(() => new MemoryStream(new byte[] { 1, 2, 3 }));
+            return file.Object;
+        }
+
+        private Task<IActionResult> WriteImage(bool replace, long productId, IFormFile? file)
+        {
+            return replace ? _controller.ReplaceImage(productId, file) : _controller.UploadImage(productId, file);
+        }
+
+        private void SetupImageWrite(bool replace, ProductImageResultDto result)
+        {
+            if (replace)
+                _productApplicationMock.Setup(x => x.ReplaceImage(10, It.IsAny<Stream>(), It.IsAny<string>(),
+                    It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>())).ReturnsAsync(result);
+            else
+                _productApplicationMock.Setup(x => x.UploadImage(10, It.IsAny<Stream>(), It.IsAny<string>(),
+                    It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>())).ReturnsAsync(result);
+        }
+
+        private static ResponseApi AssertImageError(IActionResult result, int statusCode, string message)
+        {
+            var objectResult = Assert.IsAssignableFrom<ObjectResult>(result);
+            Assert.Equal(statusCode, objectResult.StatusCode);
+            var response = Assert.IsType<ResponseApi>(objectResult.Value);
+            Assert.False(response.IsSuccess);
+            Assert.Equal(message, response.Message);
+            Assert.Empty(response.Result.GetType().GetProperties());
+            return response;
+        }
+
+        [Theory]
+        [InlineData("post", 0)]
+        [InlineData("post", -1)]
+        [InlineData("put", 0)]
+        [InlineData("put", -1)]
+        [InlineData("get", 0)]
+        [InlineData("get", -1)]
+        public async Task Image_ShouldReturn400_WhenProductIdIsInvalid(string operation, long productId)
+        {
+            _controller.WithIdentity();
+            var result = operation == "get"
+                ? await _controller.GetImage(productId)
+                : await WriteImage(operation == "put", productId, CreateImageFile());
+
+            AssertImageError(result, 400, "El identificador del producto debe ser mayor a cero.");
+            _productApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task WriteImage_ShouldReturn400_WhenFileIsMissing(bool replace)
+        {
+            _controller.WithIdentity();
+            AssertImageError(await WriteImage(replace, 10, null), 400, "Debe enviar una imagen en el campo file.");
+            _productApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(false, "imagen.jpg", "image/jpeg", 0, "El archivo de imagen está vacío.")]
+        [InlineData(true, "imagen.jpg", "image/jpeg", 0, "El archivo de imagen está vacío.")]
+        [InlineData(false, "imagen.jpg", "image/jpeg", 5242881, "La imagen no puede superar 5 MB.")]
+        [InlineData(true, "imagen.jpg", "image/jpeg", 5242881, "La imagen no puede superar 5 MB.")]
+        [InlineData(false, "imagen.svg", "image/svg+xml", 3, "Solo se permiten imágenes .jpg, .jpeg, .png y .webp.")]
+        [InlineData(true, "imagen.gif", "image/gif", 3, "Solo se permiten imágenes .jpg, .jpeg, .png y .webp.")]
+        [InlineData(false, "imagen.exe", "image/jpeg", 3, "Solo se permiten imágenes .jpg, .jpeg, .png y .webp.")]
+        [InlineData(true, "imagen.pdf", "application/pdf", 3, "Solo se permiten imágenes .jpg, .jpeg, .png y .webp.")]
+        [InlineData(false, "imagen.jpg", "application/pdf", 3, "El Content-Type no es válido para la extensión de la imagen.")]
+        [InlineData(true, "imagen.png", "image/jpeg", 3, "El Content-Type no es válido para la extensión de la imagen.")]
+        [InlineData(false, "imagen.webp", "", 3, "El Content-Type no es válido para la extensión de la imagen.")]
+        [InlineData(true, "imagen.jpg.exe", "image/jpeg", 3, "Solo se permiten imágenes .jpg, .jpeg, .png y .webp.")]
+        public async Task WriteImage_ShouldReturn400_WhenFileIsInvalid(
+            bool replace, string fileName, string contentType, long length, string expectedMessage)
+        {
+            _controller.WithIdentity();
+            AssertImageError(await WriteImage(replace, 10, CreateImageFile(fileName, contentType, length)), 400, expectedMessage);
+            _productApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(false, ProductImageStatus.ProductNotFound, 404, "El producto no existe.")]
+        [InlineData(true, ProductImageStatus.ProductNotFound, 404, "El producto no existe.")]
+        [InlineData(false, ProductImageStatus.ImageAlreadyExists, 400, "El producto ya tiene una imagen. Utilice PUT para reemplazarla.")]
+        [InlineData(false, ProductImageStatus.Conflict, 409, "La imagen del producto cambió durante la carga. Consulte el producto e intente nuevamente.")]
+        [InlineData(true, ProductImageStatus.Conflict, 409, "La imagen del producto cambió durante la carga. Consulte el producto e intente nuevamente.")]
+        public async Task WriteImage_ShouldMapApplicationFailure(bool replace, ProductImageStatus status, int httpStatus, string message)
+        {
+            _controller.WithIdentity();
+            SetupImageWrite(replace, new ProductImageResultDto { Status = status });
+            AssertImageError(await WriteImage(replace, 10, CreateImageFile()), httpStatus, message);
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(false, "imagen.JPG", "image/jpeg")]
+        [InlineData(false, "imagen.jpeg", "image/jpeg")]
+        [InlineData(true, "imagen.png", "image/png")]
+        [InlineData(true, "imagen.webp", "image/webp")]
+        public async Task WriteImage_ShouldReturn200AndForwardFileAndClaim(bool replace, string fileName, string contentType)
+        {
+            _controller.WithIdentity(userLogin: "juan.zapata");
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.QueryString = new QueryString("?userLogin=otro&user=otro");
+            _controller.Request.Form = new FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+            {
+                ["userLogin"] = "otro", ["user"] = "otro"
+            });
+            var data = new ProductImageDto { ProductId = 10, ImagePath = "sitracalco_inventory_dev/image/products/10/nueva.jpg" };
+            SetupImageWrite(replace, new ProductImageResultDto { Status = ProductImageStatus.Success, Data = data });
+
+            // Exactamente el límite de 5 MB está permitido; Application está simulada y no sube archivos.
+            var result = await WriteImage(replace, 10, CreateImageFile(fileName, contentType, 5242880));
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Same(data, response.Result);
+            Assert.Equal(replace ? "Imagen del producto actualizada correctamente." : "Imagen del producto cargada correctamente.", response.Message);
+            if (replace)
+                _productApplicationMock.Verify(x => x.ReplaceImage(10, It.IsAny<Stream>(), fileName, contentType, 5242880, "juan.zapata"), Times.Once);
+            else
+                _productApplicationMock.Verify(x => x.UploadImage(10, It.IsAny<Stream>(), fileName, contentType, 5242880, "juan.zapata"), Times.Once);
+            _productApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(false, null)]
+        [InlineData(false, "")]
+        [InlineData(false, "   ")]
+        [InlineData(true, null)]
+        [InlineData(true, "")]
+        [InlineData(true, "   ")]
+        public async Task WriteImage_ShouldReturn403_WhenUserLoginClaimIsMissing(bool replace, string? userLogin)
+        {
+            _controller.WithIdentity(userLogin: userLogin);
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.QueryString = new QueryString("?userLogin=otro");
+            _controller.Request.Form = new FormCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues> { ["userLogin"] = "otro" });
+
+            AssertImageError(await WriteImage(replace, 10, CreateImageFile()), 403, "El token no contiene un userLogin válido.");
+            _productApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(ProductImageStatus.ProductNotFound, "El producto no existe.")]
+        [InlineData(ProductImageStatus.ImageNotFound, "El producto no tiene una imagen.")]
+        public async Task GetImage_ShouldReturn404_WhenProductOrImageIsMissing(ProductImageStatus status, string message)
+        {
+            _productApplicationMock.Setup(x => x.GetImage(10)).ReturnsAsync(new ProductImageResultDto { Status = status });
+            AssertImageError(await _controller.GetImage(10), 404, message);
+        }
+
+        [Fact]
+        public async Task GetImage_ShouldReturnSignedUrlAndExpirationFromApplication()
+        {
+            var data = new ProductImageDto
+            {
+                ProductId = 10,
+                ImagePath = "sitracalco_inventory_dev/image/products/10/imagen.jpg",
+                ImageUrl = "https://storage.googleapis.com/example",
+                ExpiresAt = new DateTimeOffset(2026, 10, 1, 12, 15, 0, TimeSpan.Zero)
+            };
+            _productApplicationMock.Setup(x => x.GetImage(10))
+                .ReturnsAsync(new ProductImageResultDto { Status = ProductImageStatus.Success, Data = data });
+
+            var result = await _controller.GetImage(10);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Imagen del producto consultada correctamente.", response.Message);
+            Assert.Same(data, response.Result);
+            _productApplicationMock.Verify(x => x.GetImage(10), Times.Once);
+            _productApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData("post")]
+        [InlineData("put")]
+        [InlineData("get")]
+        public async Task Image_ShouldReturn500_WhenApplicationThrows(string operation)
+        {
+            _controller.WithIdentity();
+            var exception = new InvalidOperationException("Detalle interno que no debe exponerse.");
+            _productApplicationMock.Setup(x => x.GetImage(10)).ThrowsAsync(exception);
+            _productApplicationMock.Setup(x => x.UploadImage(10, It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>())).ThrowsAsync(exception);
+            _productApplicationMock.Setup(x => x.ReplaceImage(10, It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<long>(), It.IsAny<string>())).ThrowsAsync(exception);
+
+            var result = operation == "get" ? await _controller.GetImage(10) : await WriteImage(operation == "put", 10, CreateImageFile());
+
+            AssertImageError(result, 500, operation == "get"
+                ? "Ocurrió un error al consultar la imagen del producto."
+                : "Ocurrió un error al guardar la imagen del producto.");
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public async Task DeleteImage_ShouldReturn400_WhenProductIdIsInvalid(long productId)
+        {
+            _controller.WithIdentity();
+
+            AssertImageError(await _controller.DeleteImage(productId), 400,
+                "El identificador del producto debe ser mayor a cero.");
+            _productApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(ProductImageStatus.ProductNotFound, "El producto no existe.")]
+        [InlineData(ProductImageStatus.ImageNotFound, "El producto no tiene una imagen.")]
+        public async Task DeleteImage_ShouldReturn404_WhenProductOrImageIsMissing(ProductImageStatus status, string message)
+        {
+            _controller.WithIdentity();
+            _productApplicationMock.Setup(x => x.DeleteImage(10, "juan.zapata"))
+                .ReturnsAsync(new ProductImageResultDto { Status = status });
+
+            AssertImageError(await _controller.DeleteImage(10), 404, message);
+            _productApplicationMock.Verify(x => x.DeleteImage(10, "juan.zapata"), Times.Once);
+            _productApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task DeleteImage_ShouldReturn403_WhenUserLoginClaimIsMissingOrEmpty(string? userLogin)
+        {
+            _controller.WithIdentity(userLogin: userLogin);
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.QueryString = new QueryString("?userLogin=otro&user=otro");
+
+            AssertImageError(await _controller.DeleteImage(10), 403,
+                "El token no contiene un userLogin válido.");
+            _productApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task DeleteImage_ShouldReturn200WithProductId_AndUseOnlyUserLoginClaim()
+        {
+            _controller.WithIdentity(userLogin: " juan.zapata ");
+            _controller.Request.Headers["X-User"] = "otro";
+            _controller.Request.QueryString = new QueryString("?userLogin=otro&user=otro");
+            _controller.Request.ContentType = "application/json";
+            _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
+                """{"userLogin":"otro","user":"otro"}"""));
+            _productApplicationMock.Setup(x => x.DeleteImage(10, "juan.zapata"))
+                .ReturnsAsync(new ProductImageResultDto { Status = ProductImageStatus.Success });
+
+            var result = await _controller.DeleteImage(10);
+
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.IsSuccess);
+            Assert.Equal("Imagen del producto eliminada correctamente.", response.Message);
+            var property = Assert.Single(response.Result.GetType().GetProperties());
+            Assert.Equal("ProductId", property.Name);
+            Assert.Equal(10L, property.GetValue(response.Result));
+            _productApplicationMock.Verify(x => x.DeleteImage(10, "juan.zapata"), Times.Once);
+            _productApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
+        }
+
+        [Fact]
+        public async Task DeleteImage_ShouldReturn500_WhenApplicationThrows()
+        {
+            _controller.WithIdentity();
+            _productApplicationMock.Setup(x => x.DeleteImage(10, "juan.zapata"))
+                .ThrowsAsync(new InvalidOperationException("Detalle interno que no debe exponerse."));
+
+            AssertImageError(await _controller.DeleteImage(10), 500,
+                "Ocurrió un error al eliminar la imagen del producto.");
+            _productApplicationMock.Verify(x => x.DeleteImage(10, "juan.zapata"), Times.Once);
+            _productApplicationMock.VerifyNoOtherCalls();
+            _logApplicationMock.VerifyNoOtherCalls();
         }
 
         // =========================================================
@@ -47,25 +339,27 @@ namespace Inventory.Test.Controllers
         // =========================================================
 
         [Fact]
-        public async Task SyncProducts_ShouldReturnBadRequest_WhenUserIsEmpty()
+        public async Task SyncProducts_ShouldReturnForbidden_WhenUserLoginClaimIsEmpty()
         {
             // Act
             var result =
-                await _controller.SyncProducts("");
+                await _controller.WithIdentity(userLogin: "")
+                    .SyncProducts();
 
             // Assert
-            var badRequest =
-                Assert.IsType<BadRequestObjectResult>(
-                    result);
+            var forbidden =
+                Assert.IsType<ObjectResult>(result);
+
+            Assert.Equal(403, ((ObjectResult)result).StatusCode);
 
             var response =
                 Assert.IsType<ResponseApi>(
-                    badRequest.Value);
+                    forbidden.Value);
 
             Assert.False(response.IsSuccess);
 
             Assert.Equal(
-                "El usuario que ejecuta la operación es obligatorio.",
+                "El token no contiene un userLogin válido.",
                 response.Message);
 
             _productApplicationMock.Verify(
@@ -90,8 +384,8 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.SyncProducts(
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .SyncProducts();
 
             // Assert
             var ok =
@@ -130,8 +424,8 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.SyncProducts(
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .SyncProducts();
 
             // Assert
             var ok =
@@ -181,8 +475,8 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.SyncProducts(
-                    "  juan.zapata  ");
+                await _controller.WithIdentity(userLogin: "  juan.zapata  ")
+                    .SyncProducts();
 
             // Assert
             Assert.IsType<OkObjectResult>(
@@ -210,8 +504,8 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.SyncProducts(
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .SyncProducts();
 
             // Assert
             var ok =
@@ -275,8 +569,8 @@ namespace Inventory.Test.Controllers
 
             // Act
             var result =
-                await _controller.SyncProducts(
-                    "juan.zapata");
+                await _controller.WithIdentity(userLogin: "juan.zapata")
+                    .SyncProducts();
 
             // Assert
             var objectResult =
