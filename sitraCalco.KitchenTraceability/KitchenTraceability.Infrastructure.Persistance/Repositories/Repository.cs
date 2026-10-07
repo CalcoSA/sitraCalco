@@ -31,7 +31,9 @@ namespace KitchenTraceability.Infrastructure.Persistance.Repositories
         public async Task<T> GetById(int id)
         {
             var response = await _context.Set<T>().FindAsync(id);
+            #pragma warning disable CS8603 // Posible tipo de valor devuelto de referencia nulo
             return response;
+            #pragma warning restore CS8603 // Posible tipo de valor devuelto de referencia nulo
         }
 
         /// <summary>
