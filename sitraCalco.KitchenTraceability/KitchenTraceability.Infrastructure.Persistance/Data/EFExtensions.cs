@@ -15,8 +15,7 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data
 
             if (string.IsNullOrWhiteSpace(connectionString))
             {
-                throw new InvalidOperationException(
-                    "No se encontró la cadena de conexión 'SitraCalcoDatabase'.");
+                throw new InvalidOperationException("No se encontró la cadena de conexión 'SitraCalcoDatabase'.");
             }
 
             services.AddDbContext<SitraCalcoContext>(options =>
@@ -30,6 +29,12 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data
             });
 
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+            services.AddScoped<ISupplierRepository, SupplierRepository>();
+            services.AddScoped<ISiesaRepository, SiesaRepository>();
+            services.AddScoped<IProductRepository, ProductRepository>();
+            services.AddScoped<IProductReceptionConfigurationRepository, ProductReceptionConfigurationRepository>();
+            services.AddScoped<IProductTemperatureConfigurationRepository, ProductTemperatureConfigurationRepository>();
+            services.AddScoped<IReceptionTypeRepository, ReceptionTypeRepository>();
 
             return services;
         }
