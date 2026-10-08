@@ -14,6 +14,7 @@ namespace Authentication.Infrastructure.Persistance.Data
         public virtual DbSet<User> Users { get; set; }
         public virtual DbSet<Userrole> Userroles { get; set; }
         public virtual DbSet<AuthenticationLog> AuthenticationLogs { get; set; }
+        public virtual DbSet<AuthenticationSession> AuthenticationSessions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

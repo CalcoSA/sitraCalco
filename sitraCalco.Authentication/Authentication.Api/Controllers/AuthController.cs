@@ -1,11 +1,15 @@
 ﻿using Authentication.Application.Interfaces;
 using Authentication.Domain.Dtos;
 using Authentication.Domain.Responses;
+using Authentication.Domain.Exceptions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Globalization;
 
 namespace Authentication.Api.Controllers
 {
     [ApiController]
+    [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
@@ -22,6 +26,114 @@ namespace Authentication.Api.Controllers
             _logger = logger;
         }
 
+        [Authorize]
+        [HttpPost("activity")]
+        public async Task<IActionResult> Activity()
+        {
+            try
+            {
+                var session = await _authApplication.RegisterActivity(User.FindFirst("sid")!.Value,
+                    int.Parse(User.FindFirst("idUser")!.Value, CultureInfo.InvariantCulture));
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Actividad registrada.",
+                    Result = new { sessionExpiresAt = session.ExpiresAt }
+                });
+            }
+            catch (SessionException ex)
+            {
+                return SessionFailure(ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al registrar actividad de la sesión.");
+                return InternalFailure();
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("refresh")]
+        public async Task<IActionResult> Refresh([FromBody] RefreshTokenDto request)
+        {
+            try
+            {
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Token renovado.",
+                    Result = await _authApplication.Refresh(request.RefreshToken)
+                });
+            }
+            catch (SessionException ex)
+            {
+                return SessionFailure(ex);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return StatusCode(403, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "El usuario ya no tiene permisos para acceder al aplicativo.",
+                    Result = new { code = "FORBIDDEN" }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al renovar el token de acceso.");
+                return InternalFailure();
+            }
+        }
+
+        [Authorize]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            try
+            {
+                await _authApplication.Logout(User.FindFirst("sid")!.Value,
+                    int.Parse(User.FindFirst("idUser")!.Value, CultureInfo.InvariantCulture));
+                return Ok(new ResponseApi { IsSuccess = true, Message = "Sesión cerrada.", Result = new { } });
+            }
+            catch (SessionException ex)
+            {
+                return SessionFailure(ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al cerrar la sesión.");
+                return InternalFailure();
+            }
+        }
+
+        private ObjectResult SessionFailure(SessionException exception)
+        {
+            var status = exception.Code == "ACTIVITY_THROTTLED" ? 429 : 401;
+            if (status == 429)
+                Response.Headers.RetryAfter = exception.RetryAfterSeconds!.Value.ToString(CultureInfo.InvariantCulture);
+            else
+                Response.Headers.WWWAuthenticate = "Bearer";
+            return StatusCode(status, new ResponseApi
+            {
+                IsSuccess = false,
+                Message = exception.Message,
+                Result = new
+                {
+                    code = exception.Code,
+                    sessionExpiresAt = exception.ExpiresAt,
+                    retryAfterSeconds = exception.RetryAfterSeconds
+                }
+            });
+        }
+
+        private ObjectResult InternalFailure() => StatusCode(500, new ResponseApi
+        {
+            IsSuccess = false,
+            Message = "Ocurrió un error interno al procesar la sesión.",
+            Result = new { code = "INTERNAL_ERROR" }
+        });
+
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto request)
         {
@@ -80,6 +192,7 @@ namespace Authentication.Api.Controllers
             }
         }
 
+        [AllowAnonymous]
         [HttpGet("intranet-access")]
         public async Task<IActionResult> IntranetAccess([FromQuery] string userLogin, [FromQuery] long ts, [FromQuery] string sig)
         {
@@ -121,6 +234,15 @@ namespace Authentication.Api.Controllers
                     IsSuccess = true,
                     Message = "Acceso desde intranet exitoso.",
                     Result = authResponse
+                });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = ex.Message,
+                    Result = new { }
                 });
             }
             catch (Exception ex)
