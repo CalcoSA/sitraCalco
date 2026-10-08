@@ -22,8 +22,11 @@ namespace Authentication.Application.Services
         /// </summary>
         /// <param name="user">Type: UserDto - Usuario autenticado</param>
         /// <returns>Type: string Token y DateTime ExpiresAt</returns>
-        public (string Token, DateTime ExpiresAt) GenerateToken(UserDto user)
+        public (string Token, DateTime ExpiresAt) GenerateToken(UserDto user, string sessionId)
         {
+            if (!Guid.TryParseExact(sessionId, "D", out _))
+                throw new ArgumentException("El identificador de sesión no es válido.", nameof(sessionId));
+
             var secret = _configuration["Jwt:Secret"]
                 ?? throw new InvalidOperationException("No se encontró Jwt:Secret.");
 
@@ -39,6 +42,7 @@ namespace Authentication.Application.Services
             var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.IdUser.ToString()),
+                new Claim("sid", sessionId),
                 new Claim("idUser", user.IdUser.ToString()),
                 new Claim("wordpressUserId", user.WordpressUserId.ToString()),
                 new Claim("userLogin", user.UserLogin ?? string.Empty),

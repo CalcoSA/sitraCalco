@@ -1,5 +1,7 @@
 using Authentication.Application;
 using Authentication.Infrastructure.Persistance.Data;
+using Authentication.Api.Extensions;
+using SessionOptions = Authentication.Domain.Options.SessionOptions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -12,6 +14,12 @@ const string CorsPolicy = "SitraCalcoCorsPolicy";
 builder.Services.AddControllers();
 builder.Services.AddPersistence(builder.Configuration);
 builder.Services.AddApplication();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddOptions<SessionOptions>()
+    .Bind(builder.Configuration.GetSection("Session"))
+    .Validate(options => options.IdleTimeoutMinutes > 0, "Session:IdleTimeoutMinutes debe ser mayor que cero.")
+    .ValidateOnStart();
+builder.Services.AddScoped<SessionJwtBearerEvents>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -55,6 +63,8 @@ builder.Services
 
     {
 
+        options.MapInboundClaims = false;
+        options.EventsType = typeof(SessionJwtBearerEvents);
         options.TokenValidationParameters = new TokenValidationParameters
         {
 
