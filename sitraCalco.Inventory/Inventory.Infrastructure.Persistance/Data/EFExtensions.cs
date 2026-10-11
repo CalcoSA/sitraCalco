@@ -1,10 +1,13 @@
 ﻿using Inventory.Domain.Interfaces;
 using Inventory.Infrastructure.Persistance.Data;
+using Inventory.Domain.Options;
 using Inventory.Infrastructure.Persistance.Repositories;
 using Inventory.Infrastructure.Persistance.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Inventory.Infrastructure.Persistance.Data
 {
@@ -32,7 +35,25 @@ namespace Inventory.Infrastructure.Persistance.Data
 
             services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
             services.AddScoped<IProductRepository, ProductRepository>();
-            services.AddSingleton<IStorageService, GoogleCloudStorageService>();
+            services.AddOptions<GoogleCloudStorageOptions>()
+                .Validate(options =>
+                    string.Equals(options.AuthenticationMode, "Adc", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(options.AuthenticationMode, "Hmac", StringComparison.OrdinalIgnoreCase),
+                    "GoogleCloudStorage:AuthenticationMode debe ser Adc o Hmac.")
+                .Validate(options =>
+                    !string.Equals(options.AuthenticationMode, "Hmac", StringComparison.OrdinalIgnoreCase) ||
+                    GoogleCloudStorageHmacService.HasValidConfiguration(options),
+                    "La configuración HMAC de Google Cloud Storage está incompleta o no utiliza un endpoint HTTPS válido.");
+
+            services.AddSingleton<IStorageService>(provider =>
+            {
+                var options = provider.GetRequiredService<IOptions<GoogleCloudStorageOptions>>();
+                if (string.Equals(options.Value.AuthenticationMode, "Hmac", StringComparison.OrdinalIgnoreCase))
+                    return new GoogleCloudStorageHmacService(options,
+                        provider.GetRequiredService<ILogger<GoogleCloudStorageHmacService>>());
+
+                return new GoogleCloudStorageService(options);
+            });
             services.AddScoped<ISiesaRepository, SiesaRepository>();
             services.AddScoped<ISolutionCenterRepository,SolutionCenterRepository>();
             services.AddScoped<ILogRepository, LogRepository>();

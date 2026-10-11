@@ -35,6 +35,7 @@ namespace Authentication.Infrastructure.Persistance.Data
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<IWordpressUserRepository, WordpressUserRepository>();
             services.AddScoped<ILogRepository, LogRepository>();
+            services.AddScoped<ISessionRepository, SessionRepository>();
 
             return services;
         }
