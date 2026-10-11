@@ -46,6 +46,24 @@ namespace KitchenTraceability.Infrastructure.Persistance.Mappings
             CreateMap<CreateReceptionTypeDto, ReceptionType>();
             CreateMap<ReceptionType, UpdateReceptionTypeDto>();
             CreateMap<UpdateReceptionTypeDto, ReceptionType>();
+            CreateMap<Reception, CreateReceptionDto>();
+            CreateMap<CreateReceptionDto, Reception>();
+            CreateMap<ReceptionTransportEvaluation, CreateReceptionDto>();
+            CreateMap<CreateReceptionDto, ReceptionTransportEvaluation>();
+            CreateMap<Reception, CreateReceptionResultDto>();
+            CreateMap<CreateReceptionResultDto, Reception>();
+            CreateMap<ReceptionLot, CreateReceptionLotDto>();
+            CreateMap<CreateReceptionLotDto, ReceptionLot>();
+            CreateMap<Conformity, CreateReceptionLotDto>();
+            CreateMap<CreateReceptionLotDto, Conformity>();
+            CreateMap<ReceptionLot, CreateReceptionLotResultDto>();
+            CreateMap<CreateReceptionLotResultDto, ReceptionLot>();
+            CreateMap<Conformity, CreateReceptionLotResultDto>();
+            CreateMap<CreateReceptionLotResultDto, Conformity>();
+            CreateMap<CreateReceptionTemperatureMeasurementDto, ReceptionTemperatureMeasurement>();
+            CreateMap<ReceptionTemperatureMeasurement, ReceptionTemperatureMeasurementResultDto>();
+            CreateMap<CreateReceptionVisualInspectionDto, ReceptionVisualInspection>();
+            CreateMap<ReceptionVisualInspection, ReceptionVisualInspectionResultDto>();
         }
     }
 }

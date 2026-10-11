@@ -8,5 +8,6 @@ namespace KitchenTraceability.Domain.Interfaces
         Task<Page<ReceptionType>> GetPaged(int page, int take, string? search = null);
         Task<IEnumerable<ReceptionType>> GetOptions(string? search = null);
         Task<ReceptionType?> GetReceptionTypeById(long receptionTypeId);
+        Task<ReceptionType?> GetByFormCode(string formCode);
     }
 }

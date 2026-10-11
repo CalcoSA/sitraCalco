@@ -7,5 +7,6 @@
         public string? form_code { get; set; }
         public bool? is_active { get; set; }
         public virtual ICollection<Reception> receptions { get; set; } = new List<Reception>();
+        public virtual ICollection<Conformity> conformities { get; set; } = new List<Conformity>();
     }
 }

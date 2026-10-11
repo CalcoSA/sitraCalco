@@ -8,6 +8,7 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data
         public SitraCalcoContext() { }
         public SitraCalcoContext(DbContextOptions<SitraCalcoContext> options) : base(options) { }
 
+        public virtual DbSet<Conformity> Conformities { get; set; }
         public virtual DbSet<Product> Products { get; set; }
         public virtual DbSet<ProductReceptionConfiguration> ProductReceptionConfigurations { get; set; }
         public virtual DbSet<ProductTemperatureConfiguration> ProductTemperatureConfigurations { get; set; }

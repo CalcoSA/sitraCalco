@@ -20,21 +20,24 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data.Configurations
 
             entity.HasIndex(e => e.reception_number, "uk_ktr_reception_number").IsUnique();
 
+            entity.HasIndex(e => e.status, "idx_ktr_reception_status");
+
             entity.Property(e => e.comments).HasColumnType("text");
-            entity.Property(e => e.created_at)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("datetime");
+            entity.Property(e => e.created_at).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
             entity.Property(e => e.guide_number).HasMaxLength(100);
             entity.Property(e => e.operator_user).HasMaxLength(100);
             entity.Property(e => e.reception_date).HasColumnType("datetime");
             entity.Property(e => e.reception_number).HasMaxLength(30);
+            entity.Property(e => e.status).HasMaxLength(30).HasDefaultValueSql("'PENDING_APPROVAL'");
 
-            entity.HasOne(d => d.receptionType).WithMany(p => p.receptions)
+            entity.HasOne(d => d.receptionType)
+                .WithMany(p => p.receptions)
                 .HasForeignKey(d => d.reception_type_id)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("fk_ktr_reception_type");
 
-            entity.HasOne(d => d.supplier).WithMany(p => p.receptions)
+            entity.HasOne(d => d.supplier)
+                .WithMany(p => p.receptions)
                 .HasForeignKey(d => d.supplier_id)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("fk_ktr_reception_supplier");

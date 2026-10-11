@@ -74,5 +74,17 @@ namespace KitchenTraceability.Infrastructure.Persistance.Repositories
                 .AsNoTracking()
                 .FirstOrDefaultAsync(receptionType => receptionType.reception_type_id == receptionTypeId);
         }
+
+        /// <summary>
+        /// Método para obtener un tipo de recepción por código de formato.
+        /// </summary>
+        /// <param name="formCode"> Type: string - Código del formato a consultar </param>
+        /// <returns> Type: ReceptionType - Tipo de recepción encontrado </returns>
+        public async Task<ReceptionType?> GetByFormCode(string formCode)
+        {
+            return await _context.ReceptionTypes
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.form_code == formCode);
+        }
     }
 }
