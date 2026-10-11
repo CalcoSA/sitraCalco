@@ -8,14 +8,17 @@ namespace KitchenTraceability.Application.Services
 {
     public class ProductReceptionConfigurationApplication : IProductReceptionConfigurationApplication
     {
+        private readonly IProductTemperatureConfigurationRepository _temperatureConfigurationRepository;
         private readonly IProductReceptionConfigurationRepository _configurationRepository;
         private readonly IProductRepository _productRepository;
         private readonly IMapper _mapper;
 
-        public ProductReceptionConfigurationApplication(IProductReceptionConfigurationRepository configurationRepository,
+        public ProductReceptionConfigurationApplication(IProductTemperatureConfigurationRepository temperatureConfigurationRepository,
+            IProductReceptionConfigurationRepository configurationRepository,
             IProductRepository productRepository,
             IMapper mapper)
         {
+            _temperatureConfigurationRepository = temperatureConfigurationRepository;
             _configurationRepository = configurationRepository;
             _productRepository = productRepository;
             _mapper = mapper;
@@ -76,6 +79,16 @@ namespace KitchenTraceability.Application.Services
                 if (configuration is null)
                 {
                     return false;
+                }
+
+                if (request.requires_temperature == false)
+                {
+                    var temperatureConfiguration = await _temperatureConfigurationRepository.GetByProductId(configuration.product_id);
+
+                    if (temperatureConfiguration is not null)
+                    {
+                        throw new InvalidOperationException("No se puede desactivar la validación de temperatura hasta que se elimine la configuración de temperatura del producto.");
+                    }
                 }
 
                 _mapper.Map(request, configuration);

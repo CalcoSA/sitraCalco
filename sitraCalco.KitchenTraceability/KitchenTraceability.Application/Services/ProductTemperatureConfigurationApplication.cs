@@ -8,14 +8,17 @@ namespace KitchenTraceability.Application.Services
 {
     public class ProductTemperatureConfigurationApplication : IProductTemperatureConfigurationApplication
     {
+        private readonly IProductReceptionConfigurationRepository _receptionConfigurationRepository;
         private readonly IProductTemperatureConfigurationRepository _configurationRepository;
         private readonly IProductRepository _productRepository;
         private readonly IMapper _mapper;
 
-        public ProductTemperatureConfigurationApplication(IProductTemperatureConfigurationRepository configurationRepository,
+        public ProductTemperatureConfigurationApplication(IProductReceptionConfigurationRepository receptionConfigurationRepository,
+            IProductTemperatureConfigurationRepository configurationRepository,
             IProductRepository productRepository,
             IMapper mapper)
         {
+            _receptionConfigurationRepository = receptionConfigurationRepository;
             _configurationRepository = configurationRepository;
             _productRepository = productRepository;
             _mapper = mapper;
@@ -37,6 +40,8 @@ namespace KitchenTraceability.Application.Services
                 {
                     throw new KeyNotFoundException("El producto no existe.");
                 }
+
+                await ValidateTemperatureConfiguration(request.product_id);
 
                 var existing = await _configurationRepository.GetByProductId(request.product_id);
 
@@ -78,6 +83,8 @@ namespace KitchenTraceability.Application.Services
                     return false;
                 }
 
+                await ValidateTemperatureConfiguration(configuration.product_id);
+
                 _mapper.Map(request, configuration);
 
                 configuration.updated_at = DateTime.UtcNow;
@@ -91,6 +98,26 @@ namespace KitchenTraceability.Application.Services
             {
                 Exception exception = new("Failed" + ex.InnerException + "\n" + ex.Message);
                 throw exception;
+            }
+        }
+
+        /// <summary>
+        /// Método que valida si un producto permite configurar parámetros de temperatura.
+        /// </summary>
+        /// <param name="productId">Type: long - Id del producto a validar.</param>
+        /// <returns>Type: Task - Operación asíncrona.</returns>
+        private async Task ValidateTemperatureConfiguration(long productId)
+        {
+            var receptionConfiguration = await _receptionConfigurationRepository.GetByProductId(productId);
+
+            if (receptionConfiguration is null)
+            {
+                throw new InvalidOperationException("El producto no tiene una configuración de recepción.");
+            }
+
+            if (receptionConfiguration.requires_temperature != true)
+            {
+                throw new InvalidOperationException("El producto no requiere configuración de temperatura.");
             }
         }
 

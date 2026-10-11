@@ -35,6 +35,12 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data
             services.AddScoped<IProductReceptionConfigurationRepository, ProductReceptionConfigurationRepository>();
             services.AddScoped<IProductTemperatureConfigurationRepository, ProductTemperatureConfigurationRepository>();
             services.AddScoped<IReceptionTypeRepository, ReceptionTypeRepository>();
+            services.AddScoped<IConformityRepository, ConformityRepository>();
+            services.AddScoped<IReceptionLotRepository, ReceptionLotRepository>();
+            services.AddScoped<IReceptionRepository, ReceptionRepository>();
+            services.AddScoped<IReceptionTemperatureMeasurementRepository, ReceptionTemperatureMeasurementRepository>();
+            services.AddScoped<IReceptionTransportEvaluationRepository, ReceptionTransportEvaluationRepository>();
+            services.AddScoped<IReceptionVisualInspectionRepository, ReceptionVisualInspectionRepository>();
 
             return services;
         }

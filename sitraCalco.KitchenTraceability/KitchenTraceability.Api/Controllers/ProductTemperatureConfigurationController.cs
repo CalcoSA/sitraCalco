@@ -66,6 +66,15 @@ namespace KitchenTraceability.Api.Controllers
                     Result = response
                 });
             }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = ex.Message,
+                    Result = false
+                });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al crear la configuración de temperatura.");
@@ -74,7 +83,7 @@ namespace KitchenTraceability.Api.Controllers
                     new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = ex.Message,
+                        Message = "Ocurrió un error al crear la configuración de temperatura.",
                         Result = false
                     });
             }
@@ -126,6 +135,15 @@ namespace KitchenTraceability.Api.Controllers
                     IsSuccess = true,
                     Message = "Configuración de temperatura actualizada correctamente.",
                     Result = true
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = ex.Message,
+                    Result = false
                 });
             }
             catch (Exception ex)

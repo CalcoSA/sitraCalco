@@ -12,9 +12,19 @@ namespace KitchenTraceability.Domain.Validators
                 .WithMessage("El producto es obligatorio.");
 
             RuleFor(x => x.minimum_shelf_life_days)
-                .GreaterThanOrEqualTo(0)
-                .When(x => x.minimum_shelf_life_days.HasValue)
-                .WithMessage("Los días mínimos de vida útil no pueden ser negativos.");
+                .NotNull()
+                .When(x => x.requires_shelf_life == true)
+                .WithMessage("Debe ingresar el mínimo de días de vida útil cuando el producto requiere validación de vida útil.");
+
+            RuleFor(x => x.minimum_shelf_life_days)
+                .GreaterThan(0)
+                .When(x => x.requires_shelf_life == true && x.minimum_shelf_life_days.HasValue)
+                .WithMessage("El mínimo de días de vida útil debe ser mayor que cero.");
+
+            RuleFor(x => x.minimum_shelf_life_days)
+                .Null()
+                .When(x => x.requires_shelf_life != true)
+                .WithMessage("No debe ingresar el mínimo de días de vida útil si el producto no requiere validación de vida útil.");
         }
     }
 }

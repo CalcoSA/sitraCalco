@@ -18,8 +18,9 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data.Configurations
             entity.Property(e => e.evaluated_at).HasColumnType("datetime");
             entity.Property(e => e.evaluated_by).HasMaxLength(100);
 
-            entity.HasOne(d => d.reception).WithMany(p => p.receptionTransportEvaluations)
-                .HasForeignKey(d => d.reception_id)
+            entity.HasOne(d => d.reception)
+                .WithOne(p => p.receptionTransportEvaluation)
+                .HasForeignKey<ReceptionTransportEvaluation>(d => d.reception_id)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("fk_ktr_transport_reception");
         }

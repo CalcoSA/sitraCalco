@@ -87,6 +87,19 @@ namespace KitchenTraceability.Infrastructure.Persistance.Repositories
         }
 
         /// <summary>
+        /// Método para obtener un producto por referencia y unidad de medida.
+        /// </summary>
+        /// <param name="productReference">Type: string - Referencia del producto.</param>
+        /// <param name="unit_of_measure">Type: string - Unidad de medida del producto.</param>
+        /// <returns>Type: Product - Producto encontrado.</returns>
+        public async Task<Product?> GetByReference(string productReference, string unit_of_measure)
+        {
+            return await _context.Products
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.product_reference == productReference && x.unit_of_measure == unit_of_measure);
+        }
+
+        /// <summary>
         /// Método para registrar una colección de productos en la base de datos.
         /// </summary>
         /// <param name="products">Type: IEnumerable - Productos que se desean registrar.</param>

@@ -16,6 +16,8 @@ namespace KitchenTraceability.Application
             services.AddScoped<IProductReceptionConfigurationApplication, ProductReceptionConfigurationApplication>();
             services.AddScoped<IProductTemperatureConfigurationApplication, ProductTemperatureConfigurationApplication>();
             services.AddScoped<IReceptionTypeApplication, ReceptionTypeApplication>();
+            services.AddScoped<IReceptionApplication, ReceptionApplication>();
+            services.AddScoped<IReceptionLotApplication, ReceptionLotApplication>();
 
             services.AddScoped<IValidator<CreateSupplierDto>, CreateSupplierValidator>();
             services.AddScoped<IValidator<UpdateSupplierDto>, UpdateSupplierValidator>();
@@ -26,7 +28,10 @@ namespace KitchenTraceability.Application
             services.AddScoped<IValidator<UpdateProductTemperatureConfigurationDto>, UpdateProductTemperatureConfigurationValidator>();
             services.AddScoped<IValidator<CreateReceptionTypeDto>, CreateReceptionTypeValidator>();
             services.AddScoped<IValidator<UpdateReceptionTypeDto>, UpdateReceptionTypeValidator>();
-            
+            services.AddScoped<IValidator<CreateReceptionDto>, CreateReceptionValidator>();
+            services.AddScoped<IValidator<CreateReceptionLotDto>, CreateReceptionLotValidator>();
+            services.AddScoped<IValidator<CreateReceptionLotEvaluationDto>, CreateReceptionLotEvaluationValidator>();
+
             return services;
         }
     }
