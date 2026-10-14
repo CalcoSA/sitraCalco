@@ -5,6 +5,7 @@
         public long reception_id { get; set; }
         public long product_id { get; set; }
         public string lot_number { get; set; } = null!;
+        public string? guide_number { get; set; }
         public DateOnly? expiration_date { get; set; }
         public decimal? lot_size { get; set; }
         public decimal? unit_count { get; set; }

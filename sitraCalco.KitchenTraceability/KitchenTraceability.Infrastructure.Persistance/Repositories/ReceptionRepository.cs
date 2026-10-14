@@ -28,6 +28,31 @@ namespace KitchenTraceability.Infrastructure.Persistance.Repositories
         }
 
         /// <summary>
+        /// Método para obtener el detalle completo de un registro de la tabla reception por Id.
+        /// </summary>
+        /// <param name="receptionId"> Type: long - Id del registro a buscar. </param>
+        /// <returns> Type: Reception - Entidad con la información solicitada </returns>
+        public async Task<Reception?> GetReceptionDetailById(long receptionId)
+        {
+            return await _context.Receptions
+                .AsNoTracking()
+                .Include(x => x.receptionType)
+                .Include(x => x.supplier)
+                .Include(x => x.receptionTransportEvaluation)
+                .Include(x => x.conformities)
+                    .ThenInclude(x => x.receptionType)
+                .Include(x => x.receptionLots)
+                    .ThenInclude(x => x.receptionVisualInspection)
+                .Include(x => x.receptionLots)
+                    .ThenInclude(x => x.receptionTemperatureMeasurements)
+                .Include(x => x.receptionLots)
+                    .ThenInclude(x => x.conformities)
+                        .ThenInclude(x => x.receptionType)
+                .AsSplitQuery()
+                .FirstOrDefaultAsync(x => x.reception_id == receptionId);
+        }
+
+        /// <summary>
         /// Método para crear un registro en la tabla reception
         /// </summary>
         /// <param name="reception"> Type: Reception - Información que se desea registrar. </param>

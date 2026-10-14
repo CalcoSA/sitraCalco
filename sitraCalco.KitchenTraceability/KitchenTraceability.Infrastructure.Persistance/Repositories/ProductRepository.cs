@@ -100,6 +100,29 @@ namespace KitchenTraceability.Infrastructure.Persistance.Repositories
         }
 
         /// <summary>
+        /// Método para obtener productos asociados a una colección de referencias.
+        /// </summary>
+        /// <param name="references"> Type: IEnumerable string - Referencias a consultar. </param>
+        /// <returns> Type: IEnumerable Product - Productos encontrados </returns>
+        public async Task<IEnumerable<Product>> GetByReferences(IEnumerable<string> references)
+        {
+            var values = references
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct()
+                .ToList();
+
+            if (values.Count == 0)
+            {
+                return new List<Product>();
+            }
+
+            return await _context.Products
+                .AsNoTracking()
+                .Where(x => values.Contains(x.product_reference))
+                .ToListAsync();
+        }
+
+        /// <summary>
         /// Método para registrar una colección de productos en la base de datos.
         /// </summary>
         /// <param name="products">Type: IEnumerable - Productos que se desean registrar.</param>

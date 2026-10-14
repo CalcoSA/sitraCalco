@@ -85,6 +85,11 @@ namespace KitchenTraceability.Application.Services
                     throw new InvalidOperationException("El producto no tiene una configuración de recepción.");
                 }
 
+                if (productConfiguration.requires_guide == true && string.IsNullOrWhiteSpace(request.guide_number))
+                {
+                    throw new InvalidOperationException("El producto requiere número de guía.");
+                }
+
                 var lotStatus = ApprovedStatus;
                 bool? shelfLife = null;
                 string? shelfLifeComments = null;

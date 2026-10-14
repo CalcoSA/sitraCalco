@@ -8,10 +8,143 @@ namespace KitchenTraceability.Application.Services
     public class ReceptionApplication : IReceptionApplication
     {
         private readonly IReceptionRepository _receptionRepository;
+        private readonly IProductRepository _productRepository;
 
-        public ReceptionApplication(IReceptionRepository receptionRepository)
+        public ReceptionApplication(IReceptionRepository receptionRepository,
+            IProductRepository productRepository)
         {
             _receptionRepository = receptionRepository;
+            _productRepository = productRepository;
+        }
+
+        /// <summary>
+        /// Método que recibe la solicitud del controlador para obtener el detalle completo de una recepción.
+        /// </summary>
+        /// <param name="receptionId"> Type: long - Id de la recepción </param>
+        /// <returns> Type: ReceptionDetailDto - Información completa de la recepción </returns>
+        public async Task<ReceptionDetailDto?> GetById(long receptionId)
+        {
+            string BuildProductKey(string reference, string unitOfMeasure)
+            {
+                return string.Join("|", reference.Trim().ToUpperInvariant(), unitOfMeasure.Trim().ToUpperInvariant());
+            }
+
+            ConformityDetailDto MapConformity(Conformity conformity)
+            {
+                return new ConformityDetailDto
+                {
+                    nonconformity_id = conformity.nonconformity_id,
+                    nonconformity_number = conformity.nonconformity_number,
+                    reception_type_name = conformity.receptionType.name,
+                    reception_type_form_code = conformity.receptionType.form_code,
+                    reason_type = conformity.reason_type,
+                    quantity = conformity.quantity,
+                    document_type = conformity.document_type,
+                    document_number = conformity.document_number,
+                    observations = conformity.observations,
+                    status = conformity.status
+                };
+            }
+
+            try
+            {
+                var reception = await _receptionRepository.GetReceptionDetailById(receptionId);
+
+                if (reception is null)
+                {
+                    return null;
+                }
+
+                var references = reception.receptionLots.Select(x => x.product_reference).Distinct().ToList();
+                var products = await _productRepository.GetByReferences(references);
+
+                var productDictionary =
+                    products
+                        .GroupBy(x => BuildProductKey( x.product_reference, x.unit_of_measure))
+                        .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
+                var lots =
+                    reception.receptionLots
+                        .OrderBy(x => x.reception_lot_id)
+                        .Select(lot =>
+                        {
+                            productDictionary.TryGetValue(BuildProductKey(lot.product_reference, lot.unit_of_measure), out var product);
+
+                            return new ReceptionLotDetailDto
+                            {
+                                reception_lot_id = lot.reception_lot_id,
+                                lot_number = lot.lot_number,
+                                product_reference = lot.product_reference,
+                                product_name = product?.product_name,
+                                unit_of_measure = lot.unit_of_measure,
+                                guide_number = lot.guide_number,
+                                expiration_date = lot.expiration_date,
+                                lot_size = lot.lot_size,
+                                lot_size_unit = lot.lot_size_unit,
+                                unit_count = lot.unit_count,
+                                shelf_life = lot.shelf_life,
+                                shelf_life_comments = lot.shelf_life_comments,
+                                lot_status = lot.lot_status,
+
+                                visual_inspection =
+                                    lot.receptionVisualInspection is null
+                                        ? null
+                                        : new ReceptionVisualInspectionDetailDto
+                                        {
+                                            compliant_units = lot.receptionVisualInspection.compliant_units,
+                                            non_compliant_units = lot.receptionVisualInspection.non_compliant_units,
+                                            comments = lot.receptionVisualInspection.comments
+                                        },
+
+                                temperature_measurements =
+                                    lot.receptionTemperatureMeasurements
+                                        .Select(x =>
+                                            new ReceptionTemperatureMeasurementResultDto
+                                            {
+                                                temperature_measurement_id = x.temperature_measurement_id,
+                                                measurement_point = x.measurement_point,
+                                                temperature_celsius = x.temperature_celsius,
+                                                temperature_status = x.temperature_status,
+                                                comments = x.comments
+                                            })
+                                        .ToList(),
+
+                                nonconformities =
+                                    lot.conformities
+                                        .OrderBy(x => x.nonconformity_id)
+                                        .Select(x => MapConformity(x))
+                                        .ToList()
+                            };
+                        })
+                        .ToList();
+
+                var receptionNonconformities =
+                    reception.conformities
+                        .Where(x => x.reception_lot_id == null)
+                        .OrderBy(x => x.nonconformity_id)
+                        .Select(x => MapConformity(x))
+                        .ToList();
+
+                return new ReceptionDetailDto
+                {
+                    reception_id = reception.reception_id,
+                    reception_number = reception.reception_number,
+                    reception_type_name = reception.receptionType.name,
+                    reception_type_form_code = reception.receptionType.form_code,
+                    supplier_code = reception.supplier.supplier_code,
+                    supplier_name = reception.supplier.name,
+                    reception_date = reception.reception_date,
+                    status = reception.status,
+                    transport_is_compliant = reception.receptionTransportEvaluation?.is_compliant,
+                    transport_comments = reception.receptionTransportEvaluation?.comments,
+                    lots = lots,
+                    nonconformities = receptionNonconformities
+                };
+            }
+            catch
+            {
+                throw;
+            }
         }
 
         /// <summary>
@@ -32,7 +165,6 @@ namespace KitchenTraceability.Application.Services
                 {
                     reception_type_id = request.reception_type_id,
                     supplier_id = request.supplier_id,
-                    guide_number = request.guide_number,
                     reception_date = now,
                     operator_user = user,
                     comments = null,

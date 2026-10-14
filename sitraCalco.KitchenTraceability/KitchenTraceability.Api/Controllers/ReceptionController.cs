@@ -25,6 +25,47 @@ namespace KitchenTraceability.Api.Controllers
             _logger = logger;
         }
 
+        [HttpGet("{id:long}")]
+        public async Task<IActionResult> GetById(long id)
+        {
+            try
+            {
+                var response = await _receptionApplication.GetById(id);
+
+                if (response is null)
+                {
+                    return NotFound(
+                        new ResponseApi
+                        {
+                            IsSuccess = false,
+                            Message = "Recepción no encontrada.",
+                            Result = new { }
+                        });
+                }
+
+                return Ok(
+                    new ResponseApi
+                    {
+                        IsSuccess = true,
+                        Message = "Recepción consultada correctamente.",
+                        Result = response
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar la recepción con Id {ReceptionId}.", id);
+
+                return StatusCode(
+                    StatusCodes.Status500InternalServerError,
+                    new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "Ocurrió un error al consultar la recepción.",
+                        Result = new { }
+                    });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateReceptionDto request)
         {

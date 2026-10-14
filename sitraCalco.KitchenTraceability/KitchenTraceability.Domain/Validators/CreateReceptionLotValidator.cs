@@ -20,6 +20,11 @@ namespace KitchenTraceability.Domain.Validators
                 .WithMessage("El número de lote es obligatorio.")
                 .MaximumLength(100);
 
+            RuleFor(x => x.guide_number)
+                .MaximumLength(100)
+                .When(x => !string.IsNullOrWhiteSpace(x.guide_number))
+                .WithMessage("El número de guía no puede superar 100 caracteres.");
+
             RuleFor(x => x.lot_size)
                 .GreaterThan(0)
                 .When(x => x.lot_size.HasValue)

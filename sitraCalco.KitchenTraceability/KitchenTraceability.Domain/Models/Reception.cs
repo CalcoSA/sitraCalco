@@ -6,7 +6,6 @@
         public string reception_number { get; set; } = null!;
         public long reception_type_id { get; set; }
         public long supplier_id { get; set; }
-        public string? guide_number { get; set; }
         public DateTime reception_date { get; set; }
         public string operator_user { get; set; } = null!;
         public string? comments { get; set; }
