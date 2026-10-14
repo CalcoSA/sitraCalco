@@ -75,38 +75,38 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para crear un usuario y su relación con un rol.
         /// </summary>
         /// <param name="entity">Type: CreateUserDto - Información del usuario a crear</param>
-        /// <returns>Type: bool - True si el usuario fue creado correctamente</returns>
-        public async Task<bool> Create(CreateUserDto entity)
+        /// <returns>Resultado de la operación y descripción de auditoría si fue exitosa</returns>
+        public async Task<AuditResultDto> Create(CreateUserDto entity)
         {
             try
             {
                 if (entity is null)
-                    return false;
+                    return new AuditResultDto();
 
                 if (string.IsNullOrWhiteSpace(entity.UserLogin))
-                    return false;
+                    return new AuditResultDto();
 
                 if (string.IsNullOrWhiteSpace(entity.UserName))
-                    return false;
+                    return new AuditResultDto();
 
                 if (entity.WordpressUserId <= 0)
-                    return false;
+                    return new AuditResultDto();
 
                 if (entity.IdRole <= 0)
-                    return false;
+                    return new AuditResultDto();
 
                 var userLogin = entity.UserLogin.Trim();
                 var userName = entity.UserName.Trim();
 
-                var roleExists = await _roleRepository.GetById(entity.IdRole);
+                var role = await _roleRepository.GetById(entity.IdRole);
 
-                if (roleExists == null)
-                    return false;
+                if (role == null)
+                    return new AuditResultDto();
 
                 var userLoginExists = await _userRepository.ExistsByUserLogin(userLogin);
 
                 if (userLoginExists)
-                    return false;
+                    return new AuditResultDto();
 
                 var user = new User
                 {
@@ -118,7 +118,11 @@ namespace Authentication.Application.Services
 
                 await _userRepository.CreateUser(user, entity.IdRole);
 
-                return true;
+                return new AuditResultDto
+                {
+                    IsSuccess = true,
+                    Description = $"Se creó el usuario {user.UserName} con el rol {role.NameRole}."
+                };
             }
             catch (Exception ex)
             {
@@ -131,29 +135,29 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para actualizar un registro en la tabla User.
         /// </summary>
         /// <param name="entity">Type: UpdateUserDto - Información del usuario a actualizar</param>
-        /// <returns>Type: bool - True si el usuario fue actualizado correctamente</returns>
-        public async Task<bool> Update(UpdateUserDto entity)
+        /// <returns>Resultado de la operación y descripción de auditoría si fue exitosa</returns>
+        public async Task<AuditResultDto> Update(UpdateUserDto entity)
         {
             try
             {
                 if (entity is null)
-                    return false;
+                    return new AuditResultDto();
 
                 if (entity.IdUser <= 0)
-                    return false;
+                    return new AuditResultDto();
 
                 if (entity.IdRole <= 0)
-                    return false;
+                    return new AuditResultDto();
 
                 var currentUser = await _userRepository.GetById(entity.IdUser);
 
                 if (currentUser is null)
-                    return false;
+                    return new AuditResultDto();
 
-                var roleExists = await _roleRepository.GetById(entity.IdRole);
+                var role = await _roleRepository.GetById(entity.IdRole);
 
-                if (roleExists == null)
-                    return false;
+                if (role == null)
+                    return new AuditResultDto();
 
                 await _userRepository.UpdateUser(
                     entity.IdUser,
@@ -161,7 +165,11 @@ namespace Authentication.Application.Services
                     entity.IdRole
                 );
 
-                return true;
+                return new AuditResultDto
+                {
+                    IsSuccess = true,
+                    Description = $"Se actualizó el usuario {currentUser.UserName}: rol {role.NameRole} y estado {(entity.StatusUser ? "activo" : "inactivo")}."
+                };
             }
             catch (Exception ex)
             {
@@ -174,22 +182,27 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para eliminar un usuario por IdUser.
         /// </summary>
         /// <param name="idUser">Type: int - Identificador del usuario a eliminar</param>
-        /// <returns>Type: bool - True si el usuario fue eliminado correctamente</returns>
-        public async Task<bool> Delete(int idUser)
+        /// <returns>Resultado de la operación y descripción de auditoría si fue exitosa</returns>
+        public async Task<AuditResultDto> Delete(int idUser)
         {
             try
             {
                 if (idUser <= 0)
-                    return false;
+                    return new AuditResultDto();
 
                 var user = await _userRepository.GetById(idUser);
 
                 if (user is null)
-                    return false;
+                    return new AuditResultDto();
 
+                var userName = user.UserName;
                 await _userRepository.DeleteUser(idUser);
 
-                return true;
+                return new AuditResultDto
+                {
+                    IsSuccess = true,
+                    Description = $"Se eliminó el usuario {userName}."
+                };
             }
             catch (Exception ex)
             {

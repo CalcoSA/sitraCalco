@@ -6,8 +6,8 @@ namespace Authentication.Application.Interfaces
     {
         Task<IEnumerable<RoleDto>> GetAll();
         Task<RoleDetailDto> GetById(int idRole);
-        Task<bool> Create(CreateRoleDto entity);
-        Task<bool> Update(UpdateRoleDto entity);
-        Task<bool> Delete(int Id);
+        Task<AuditResultDto> Create(CreateRoleDto entity);
+        Task<AuditResultDto> Update(UpdateRoleDto entity);
+        Task<AuditResultDto> Delete(int Id);
     }
 }
