@@ -123,7 +123,7 @@ namespace Inventory.Application.Services
             }
         }
 
-        public async Task<long> CreateSectionConfiguration(
+        public async Task<AuditResult<long>> CreateSectionConfiguration(
     long solutionCenterId,
     CreateSectionConfigurationDto request,
     string userName)
@@ -131,21 +131,21 @@ namespace Inventory.Application.Services
             try
             {
                 if (solutionCenterId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (request is null)
-                    return 0;
+                    return new(0);
 
                 if (string.IsNullOrWhiteSpace(
                     request.SectionName))
-                    return 0;
+                    return new(0);
 
                 if (string.IsNullOrWhiteSpace(userName))
-                    return 0;
+                    return new(0);
 
                 if (request.Products is null ||
                     request.Products.Count == 0)
-                    return 0;
+                    return new(0);
 
                 // Validar existencia del centro.
                 var solutionCenterExists =
@@ -154,7 +154,7 @@ namespace Inventory.Application.Services
                             solutionCenterId);
 
                 if (!solutionCenterExists)
-                    return 0;
+                    return new(0);
 
                 var sectionName =
                     request.SectionName.Trim();
@@ -165,10 +165,10 @@ namespace Inventory.Application.Services
                             sectionName);
 
                 if (sectionNameExists)
-                    return 0;
+                    return new(0);
 
                 if (sectionNameExists)
-                    return 0;
+                    return new(0);
 
                 // ProductId y SortOrder deben ser válidos.
                 var invalidProducts =
@@ -177,7 +177,7 @@ namespace Inventory.Application.Services
                         product.SortOrder <= 0);
 
                 if (invalidProducts)
-                    return 0;
+                    return new(0);
 
                 // El mismo ProductId no debe venir
                 // dos veces en la petición.
@@ -189,7 +189,7 @@ namespace Inventory.Application.Services
                             group.Count() > 1);
 
                 if (duplicatedProductIds)
-                    return 0;
+                    return new(0);
 
                 // No permitir posiciones repetidas.
                 var duplicatedSortOrders =
@@ -200,7 +200,7 @@ namespace Inventory.Application.Services
                             group.Count() > 1);
 
                 if (duplicatedSortOrders)
-                    return 0;
+                    return new(0);
 
                 // Obtener todos los productos enviados
                 // en una única consulta.
@@ -218,7 +218,7 @@ namespace Inventory.Application.Services
                 // Algún ProductId enviado no existe.
                 if (products.Count !=
                     productIds.Distinct().Count())
-                    return 0;
+                    return new(0);
 
                 // Una referencia puede repetirse si tiene
                 // distinta unidad de medida.
@@ -243,7 +243,7 @@ namespace Inventory.Application.Services
                             group.Count() > 1);
 
                 if (duplicatedReferenceAndUnit)
-                    return 0;
+                    return new(0);
 
                 var section = new Section
                 {
@@ -352,14 +352,14 @@ namespace Inventory.Application.Services
                 throw;
             }
         }
-        public async Task<bool> UpdateSectionStatus(
+        public async Task<AuditResult<bool>> UpdateSectionStatus(
     long sectionId,
     bool isActive)
         {
             try
             {
                 if (sectionId <= 0)
-                    return false;
+                    return new(false);
 
                 return await _solutionCenterRepository
                     .UpdateSectionStatus(
@@ -481,7 +481,7 @@ namespace Inventory.Application.Services
             }
         }
 
-        public async Task<long> AddProductToSection(
+        public async Task<AuditResult<long>> AddProductToSection(
     long solutionCenterId,
     long sectionId,
     AddSectionProductDto request,
@@ -490,23 +490,23 @@ namespace Inventory.Application.Services
             try
             {
                 if (solutionCenterId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (sectionId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (request is null)
-                    return 0;
+                    return new(0);
 
                 if (request.ProductId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (request.Position <= 0)
-                    return 0;
+                    return new(0);
 
                 if (string.IsNullOrWhiteSpace(
                     userName))
-                    return 0;
+                    return new(0);
 
                 // El centro debe existir.
                 var solutionCenterExists =
@@ -515,7 +515,7 @@ namespace Inventory.Application.Services
                             solutionCenterId);
 
                 if (!solutionCenterExists)
-                    return 0;
+                    return new(0);
 
                 // La asignación al centro debe estar activa, aunque aún no tenga productos.
                 var sectionBelongs =
@@ -525,7 +525,7 @@ namespace Inventory.Application.Services
                             sectionId);
 
                 if (!sectionBelongs)
-                    return 0;
+                    return new(0);
 
                 // Producto que se desea agregar.
                 var product =
@@ -534,7 +534,7 @@ namespace Inventory.Application.Services
                             request.ProductId);
 
                 if (product is null)
-                    return 0;
+                    return new(0);
 
                 // Obtener productos actuales del pasillo.
                 var sectionProducts = (
@@ -558,7 +558,7 @@ namespace Inventory.Application.Services
                             StringComparison.OrdinalIgnoreCase));
 
                 if (duplicateExists)
-                    return 0;
+                    return new(0);
 
                 // Si hay 10 productos:
                 //
@@ -570,13 +570,13 @@ namespace Inventory.Application.Services
                     sectionProducts.Count + 1;
 
                 if (request.Position > maxPosition)
-                    return 0;
+                    return new(0);
 
                 return await _solutionCenterRepository
                     .AddProductToSection(
                         solutionCenterId,
                         sectionId,
-                        request.ProductId,
+                        product,
                         request.Position,
                         userName.Trim());
             }
@@ -585,7 +585,7 @@ namespace Inventory.Application.Services
                 throw;
             }
         }
-        public async Task<bool> UpdateProductOrder(
+        public async Task<AuditResult<bool>> UpdateProductOrder(
     long solutionCenterId,
     long sectionId,
     long solutionCenterProductId,
@@ -594,16 +594,16 @@ namespace Inventory.Application.Services
             try
             {
                 if (solutionCenterId <= 0)
-                    return false;
+                    return new(false);
 
                 if (sectionId <= 0)
-                    return false;
+                    return new(false);
 
                 if (solutionCenterProductId <= 0)
-                    return false;
+                    return new(false);
 
                 if (newPosition <= 0)
-                    return false;
+                    return new(false);
 
                 var solutionCenterExists =
                     await _solutionCenterRepository
@@ -611,7 +611,7 @@ namespace Inventory.Application.Services
                             solutionCenterId);
 
                 if (!solutionCenterExists)
-                    return false;
+                    return new(false);
 
                 var sectionBelongs =
                     await _solutionCenterRepository
@@ -620,7 +620,7 @@ namespace Inventory.Application.Services
                             sectionId);
 
                 if (!sectionBelongs)
-                    return false;
+                    return new(false);
 
                 // El estado global de Section es independiente del estado de la asignación.
 
@@ -636,7 +636,7 @@ namespace Inventory.Application.Services
                 throw;
             }
         }
-        public async Task<bool> DeleteProductFromSection(
+        public async Task<AuditResult<bool>> DeleteProductFromSection(
     long solutionCenterId,
     long sectionId,
     long solutionCenterProductId)
@@ -644,13 +644,13 @@ namespace Inventory.Application.Services
             try
             {
                 if (solutionCenterId <= 0)
-                    return false;
+                    return new(false);
 
                 if (sectionId <= 0)
-                    return false;
+                    return new(false);
 
                 if (solutionCenterProductId <= 0)
-                    return false;
+                    return new(false);
 
                 var solutionCenterExists =
                     await _solutionCenterRepository
@@ -658,7 +658,7 @@ namespace Inventory.Application.Services
                             solutionCenterId);
 
                 if (!solutionCenterExists)
-                    return false;
+                    return new(false);
 
                 var sectionBelongs =
                     await _solutionCenterRepository
@@ -667,7 +667,7 @@ namespace Inventory.Application.Services
                             sectionId);
 
                 if (!sectionBelongs)
-                    return false;
+                    return new(false);
 
                 // El estado global de Section es independiente del estado de la asignación.
 

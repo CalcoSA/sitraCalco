@@ -369,7 +369,7 @@ namespace Inventory.Test.Controllers
 
             _inventoryConfigurationApplicationMock
                 .Setup(x => x.CreateAssignments(1, request))
-                .ReturnsAsync(0);
+                .ReturnsAsync(new AuditResult<int>(0));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -378,6 +378,8 @@ namespace Inventory.Test.Controllers
                     request);
 
             Assert.IsType<BadRequestObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -388,7 +390,7 @@ namespace Inventory.Test.Controllers
 
             _inventoryConfigurationApplicationMock
                 .Setup(x => x.CreateAssignments(1, request))
-                .ReturnsAsync(2);
+                .ReturnsAsync(new AuditResult<int>(2, "Se agregaron 2 asignaciones a la configuración de inventario Semanal."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -408,7 +410,8 @@ namespace Inventory.Test.Controllers
                 x => x.CreateLog(
                     It.Is<CreateLogDto>(log =>
                         log.Action == "Crear" &&
-                        log.Module == "ConfiguracionInventarios")),
+                        log.Module == "ConfiguracionInventarios" &&
+                        log.Description == "Se agregaron 2 asignaciones a la configuración de inventario Semanal.")),
                 Times.Once);
         }
 
@@ -432,6 +435,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -1850,7 +1855,7 @@ namespace Inventory.Test.Controllers
                         2,
                         2,
                         false))
-                .ReturnsAsync(false);
+                .ReturnsAsync(new AuditResult<bool>(false));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -1861,6 +1866,8 @@ namespace Inventory.Test.Controllers
                     request);
 
             Assert.IsType<NotFoundObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -1879,7 +1886,7 @@ namespace Inventory.Test.Controllers
                         2,
                         2,
                         false))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new AuditResult<bool>(true, "Se inactivó la sección Pasillo 1 para el centro de solución BL07 en la configuración de inventario Semanal."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -1905,7 +1912,8 @@ namespace Inventory.Test.Controllers
                 x => x.CreateLog(
                     It.Is<CreateLogDto>(log =>
                         log.Action == "Actualizar" &&
-                        log.Module == "ConfiguracionInventarios")),
+                        log.Module == "ConfiguracionInventarios" &&
+                        log.Description == "Se inactivó la sección Pasillo 1 para el centro de solución BL07 en la configuración de inventario Semanal.")),
                 Times.Once);
         }
 
@@ -1939,6 +1947,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -2045,6 +2055,8 @@ namespace Inventory.Test.Controllers
                     request);
 
             Assert.IsType<BadRequestObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -2053,7 +2065,7 @@ namespace Inventory.Test.Controllers
             var request =
                 new UpdateInventoryConfigurationDto
                 {
-                    InventoryConfigurationName = "Uno a uno",
+                    InventoryConfigurationName = "  Uno a uno  ",
                     StartDate = new DateTime(2026, 9, 1),
                     EndDate = new DateTime(2026, 9, 30)
                 };
@@ -2083,7 +2095,8 @@ namespace Inventory.Test.Controllers
                 x => x.CreateLog(
                     It.Is<CreateLogDto>(log =>
                         log.Action == "Actualizar" &&
-                        log.Module == "ConfiguracionInventarios")),
+                        log.Module == "ConfiguracionInventarios" &&
+                        log.Description == "Se actualizó la configuración de inventario Uno a uno. Fecha de inicio: 2026-09-01. Fecha de fin: 2026-09-30.")),
                 Times.Once);
         }
 
@@ -2113,6 +2126,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -2219,7 +2234,7 @@ namespace Inventory.Test.Controllers
                     x.AddDays(
                         1,
                         request))
-                .ReturnsAsync(0);
+                .ReturnsAsync(new AuditResult<int>(0));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2228,6 +2243,8 @@ namespace Inventory.Test.Controllers
                     request);
 
             Assert.IsType<BadRequestObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -2248,7 +2265,7 @@ namespace Inventory.Test.Controllers
                     x.AddDays(
                         1,
                         request))
-                .ReturnsAsync(2);
+                .ReturnsAsync(new AuditResult<int>(2, "Se agregaron los días Martes, Miercoles a la configuración de inventario Semanal."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2272,7 +2289,8 @@ namespace Inventory.Test.Controllers
                 x => x.CreateLog(
                     It.Is<CreateLogDto>(log =>
                         log.Action == "Crear" &&
-                        log.Module == "ConfiguracionInventarios")),
+                        log.Module == "ConfiguracionInventarios" &&
+                        log.Description == "Se agregaron los días Martes, Miercoles a la configuración de inventario Semanal.")),
                 Times.Once);
         }
 
@@ -2305,6 +2323,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -2357,7 +2377,7 @@ namespace Inventory.Test.Controllers
                     x.DeleteDay(
                         1,
                         "Martes"))
-                .ReturnsAsync(false);
+                .ReturnsAsync(new AuditResult<bool>(false));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2366,6 +2386,8 @@ namespace Inventory.Test.Controllers
                     "Martes");
 
             Assert.IsType<NotFoundObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -2376,7 +2398,7 @@ namespace Inventory.Test.Controllers
                     x.DeleteDay(
                         1,
                         "Martes"))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new AuditResult<bool>(true, "Se eliminó el día Martes de la configuración de inventario Semanal."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2423,6 +2445,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -2466,7 +2490,7 @@ namespace Inventory.Test.Controllers
                         1,
                         2,
                         2))
-                .ReturnsAsync(false);
+                .ReturnsAsync(new AuditResult<bool>(false));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2476,6 +2500,8 @@ namespace Inventory.Test.Controllers
                     2);
 
             Assert.IsType<NotFoundObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -2487,7 +2513,7 @@ namespace Inventory.Test.Controllers
                         1,
                         2,
                         2))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new AuditResult<bool>(true, "Se eliminó la asociación de la sección Pasillo 1 del centro de solución BL07 en la configuración de inventario Semanal."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2537,6 +2563,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -2577,7 +2605,7 @@ namespace Inventory.Test.Controllers
                     x.DeleteAssignmentsBySection(
                         1,
                         2))
-                .ReturnsAsync(0);
+                .ReturnsAsync(new AuditResult<int>(0));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2586,6 +2614,8 @@ namespace Inventory.Test.Controllers
                     2);
 
             Assert.IsType<NotFoundObjectResult>(result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -2596,7 +2626,7 @@ namespace Inventory.Test.Controllers
                     x.DeleteAssignmentsBySection(
                         1,
                         2))
-                .ReturnsAsync(2);
+                .ReturnsAsync(new AuditResult<int>(2, "Se eliminó la sección Pasillo 1 de 2 asociación(es) de la configuración de inventario Semanal."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2645,6 +2675,8 @@ namespace Inventory.Test.Controllers
                 Assert.IsType<ObjectResult>(result);
 
             Assert.Equal(500, objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
     }
 }

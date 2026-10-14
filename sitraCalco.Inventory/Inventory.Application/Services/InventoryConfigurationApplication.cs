@@ -89,21 +89,21 @@ namespace Inventory.Application.Services
             }
         }
 
-        public async Task<int> CreateAssignments(
+        public async Task<AuditResult<int>> CreateAssignments(
     long inventoryConfigurationId,
     CreateInventoryConfigurationAssignmentsDto request)
         {
             try
             {
                 if (inventoryConfigurationId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (request is null)
-                    return 0;
+                    return new(0);
 
                 if (request.Assignments is null ||
                     request.Assignments.Count == 0)
-                    return 0;
+                    return new(0);
 
                 // Validar que la configuración exista.
                 var configurationExists =
@@ -112,7 +112,7 @@ namespace Inventory.Application.Services
                             inventoryConfigurationId);
 
                 if (!configurationExists)
-                    return 0;
+                    return new(0);
 
                 // Protección adicional por si Application
                 // fuera invocada sin pasar por FluentValidation.
@@ -127,7 +127,7 @@ namespace Inventory.Application.Services
                             group.Count() > 1);
 
                 if (duplicatedAssignments)
-                    return 0;
+                    return new(0);
 
                 var assignmentsToCreate =
                     new List<InventoryConfigurationAssignment>();
@@ -139,7 +139,7 @@ namespace Inventory.Application.Services
                     if (assignment.SolutionCenterId <= 0 ||
                         assignment.SectionId <= 0)
                     {
-                        return 0;
+                        return new(0);
                     }
 
                     // Validar que exista la bodega
@@ -150,7 +150,7 @@ namespace Inventory.Application.Services
                                 assignment.SolutionCenterId);
 
                     if (!solutionCenterExists)
-                        return 0;
+                        return new(0);
 
                     // Validar que exista la sección.
                     var sectionExists =
@@ -159,7 +159,7 @@ namespace Inventory.Application.Services
                                 assignment.SectionId);
 
                     if (!sectionExists)
-                        return 0;
+                        return new(0);
 
                     // Validar que la sección realmente
                     // pertenezca a ese Solution Center.
@@ -170,7 +170,7 @@ namespace Inventory.Application.Services
                                 assignment.SectionId);
 
                     if (!sectionBelongs)
-                        return 0;
+                        return new(0);
 
                     // Validar que esta combinación
                     // aún no exista en la configuración.
@@ -182,7 +182,7 @@ namespace Inventory.Application.Services
                                 assignment.SectionId);
 
                     if (assignmentExists)
-                        return 0;
+                        return new(0);
 
                     assignmentsToCreate.Add(
                         new InventoryConfigurationAssignment
@@ -607,7 +607,7 @@ namespace Inventory.Application.Services
         /// Actualiza el estado de una asociación entre
         /// configuración de inventario, bodega o punto de venta y sección.
         /// </summary>
-        public async Task<bool> UpdateAssignmentStatus(
+        public async Task<AuditResult<bool>> UpdateAssignmentStatus(
             long inventoryConfigurationId,
             long solutionCenterId,
             long sectionId,
@@ -616,13 +616,13 @@ namespace Inventory.Application.Services
             try
             {
                 if (inventoryConfigurationId <= 0)
-                    return false;
+                    return new(false);
 
                 if (solutionCenterId <= 0)
-                    return false;
+                    return new(false);
 
                 if (sectionId <= 0)
-                    return false;
+                    return new(false);
 
                 return await _inventoryConfigurationRepository
                     .UpdateAssignmentStatus(
@@ -735,21 +735,21 @@ namespace Inventory.Application.Services
         /// Agrega uno o varios días a una configuración
         /// de inventario.
         /// </summary>
-        public async Task<int> AddDays(
+        public async Task<AuditResult<int>> AddDays(
             long inventoryConfigurationId,
             AddInventoryConfigurationDaysDto request)
         {
             try
             {
                 if (inventoryConfigurationId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (request is null)
-                    return 0;
+                    return new(0);
 
                 if (request.Days is null ||
                     request.Days.Count == 0)
-                    return 0;
+                    return new(0);
 
                 // Validar que la configuración exista.
                 var configurationExists =
@@ -758,7 +758,7 @@ namespace Inventory.Application.Services
                             inventoryConfigurationId);
 
                 if (!configurationExists)
-                    return 0;
+                    return new(0);
 
                 // Protección adicional contra días repetidos
                 // dentro del mismo request.
@@ -771,7 +771,7 @@ namespace Inventory.Application.Services
                             group.Count() > 1);
 
                 if (duplicatedDays)
-                    return 0;
+                    return new(0);
 
                 var daysToCreate =
                     new List<InventoryConfigurationDay>();
@@ -780,13 +780,13 @@ namespace Inventory.Application.Services
                 foreach (var day in request.Days)
                 {
                     if (string.IsNullOrWhiteSpace(day))
-                        return 0;
+                        return new(0);
 
                     var normalizedDay =
                         NormalizeDay(day);
 
                     if (normalizedDay is null)
-                        return 0;
+                        return new(0);
 
                     var dayExists =
                         await _inventoryConfigurationRepository
@@ -795,7 +795,7 @@ namespace Inventory.Application.Services
                                 normalizedDay);
 
                     if (dayExists)
-                        return 0;
+                        return new(0);
 
                     daysToCreate.Add(
                         new InventoryConfigurationDay
@@ -822,17 +822,17 @@ namespace Inventory.Application.Services
         /// Elimina un día específico de una
         /// configuración de inventario.
         /// </summary>
-        public async Task<bool> DeleteDay(
+        public async Task<AuditResult<bool>> DeleteDay(
             long inventoryConfigurationId,
             string dayOfWeek)
         {
             try
             {
                 if (inventoryConfigurationId <= 0)
-                    return false;
+                    return new(false);
 
                 if (string.IsNullOrWhiteSpace(dayOfWeek))
-                    return false;
+                    return new(false);
 
                 var configurationExists =
                     await _inventoryConfigurationRepository
@@ -840,13 +840,13 @@ namespace Inventory.Application.Services
                             inventoryConfigurationId);
 
                 if (!configurationExists)
-                    return false;
+                    return new(false);
 
                 var normalizedDay =
                     NormalizeDay(dayOfWeek);
 
                 if (normalizedDay is null)
-                    return false;
+                    return new(false);
 
                 return await _inventoryConfigurationRepository
                     .DeleteDay(
@@ -862,7 +862,7 @@ namespace Inventory.Application.Services
         /// Elimina una asociación específica entre
         /// configuración de inventario, Solution Center y sección.
         /// </summary>
-        public async Task<bool> DeleteAssignment(
+        public async Task<AuditResult<bool>> DeleteAssignment(
             long inventoryConfigurationId,
             long solutionCenterId,
             long sectionId)
@@ -870,13 +870,13 @@ namespace Inventory.Application.Services
             try
             {
                 if (inventoryConfigurationId <= 0)
-                    return false;
+                    return new(false);
 
                 if (solutionCenterId <= 0)
-                    return false;
+                    return new(false);
 
                 if (sectionId <= 0)
-                    return false;
+                    return new(false);
 
                 return await _inventoryConfigurationRepository
                     .DeleteAssignment(
@@ -893,17 +893,17 @@ namespace Inventory.Application.Services
         /// Elimina una sección de todos los Solution Centers
         /// asociados dentro de una configuración de inventario.
         /// </summary>
-        public async Task<int> DeleteAssignmentsBySection(
+        public async Task<AuditResult<int>> DeleteAssignmentsBySection(
             long inventoryConfigurationId,
             long sectionId)
         {
             try
             {
                 if (inventoryConfigurationId <= 0)
-                    return 0;
+                    return new(0);
 
                 if (sectionId <= 0)
-                    return 0;
+                    return new(0);
 
                 var configurationExists =
                     await _inventoryConfigurationRepository
@@ -911,7 +911,7 @@ namespace Inventory.Application.Services
                             inventoryConfigurationId);
 
                 if (!configurationExists)
-                    return 0;
+                    return new(0);
 
                 var sectionExists =
                     await _inventoryConfigurationRepository
@@ -919,7 +919,7 @@ namespace Inventory.Application.Services
                             sectionId);
 
                 if (!sectionExists)
-                    return 0;
+                    return new(0);
 
                 return await _inventoryConfigurationRepository
                     .DeleteAssignmentsBySection(

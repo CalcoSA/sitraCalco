@@ -12,7 +12,7 @@ namespace Inventory.Domain.Interfaces
         Task<bool> SectionExists(long sectionId);
         Task<bool> SectionBelongsToSolutionCenter(long solutionCenterId,long sectionId);
         Task<bool> AssignmentExists(long inventoryConfigurationId,long solutionCenterId,long sectionId);
-        Task<int> CreateAssignments(IEnumerable<InventoryConfigurationAssignment> assignments);
+        Task<AuditResult<int>> CreateAssignments(IEnumerable<InventoryConfigurationAssignment> assignments);
         Task<IEnumerable<SolutionCenterListDto>>GetSolutionCentersByType(long solutionCenterTypeId);
         Task<IEnumerable<SectionDto>>GetPointOfSaleOnlySections();
         Task<SolutionCenterSectionsDto?>GetSolutionCenterWithSections(long solutionCenterId);
@@ -23,14 +23,14 @@ namespace Inventory.Domain.Interfaces
         Task<PagedDto<AvailableInventoryProductDto>> GetAvailableInventoryProducts(long solutionCenterId, long sectionId, int page, int take);
         Task<SolutionCenterInventoryConfigurationsDto?>GetInventoryConfigurationsBySolutionCenterId(long solutionCenterId);
         Task<InventoryConfigurationByIdDto?>GetInventoryConfigurationById(long inventoryConfigurationId);
-        Task<bool> UpdateAssignmentStatus(long inventoryConfigurationId,long solutionCenterId,long sectionId,bool isActive);
+        Task<AuditResult<bool>> UpdateAssignmentStatus(long inventoryConfigurationId,long solutionCenterId,long sectionId,bool isActive);
         Task<bool> ExistsByName(string inventoryConfigurationName,long excludeInventoryConfigurationId);
         Task<bool> UpdateInventoryConfiguration(long inventoryConfigurationId,string inventoryConfigurationName,DateTime? startDate,DateTime? endDate);
         Task<bool> DayExists(long inventoryConfigurationId,string dayOfWeek);
-        Task<int> AddDays(IEnumerable<InventoryConfigurationDay> days);
-        Task<bool> DeleteDay(long inventoryConfigurationId,string dayOfWeek);
-        Task<bool> DeleteAssignment(long inventoryConfigurationId,long solutionCenterId,long sectionId);
-        Task<int> DeleteAssignmentsBySection(long inventoryConfigurationId,long sectionId);
+        Task<AuditResult<int>> AddDays(IEnumerable<InventoryConfigurationDay> days);
+        Task<AuditResult<bool>> DeleteDay(long inventoryConfigurationId,string dayOfWeek);
+        Task<AuditResult<bool>> DeleteAssignment(long inventoryConfigurationId,long solutionCenterId,long sectionId);
+        Task<AuditResult<int>> DeleteAssignmentsBySection(long inventoryConfigurationId,long sectionId);
 
 
     }
