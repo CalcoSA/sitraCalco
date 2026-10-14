@@ -24,7 +24,6 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data.Configurations
 
             entity.Property(e => e.comments).HasColumnType("text");
             entity.Property(e => e.created_at).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
-            entity.Property(e => e.guide_number).HasMaxLength(100);
             entity.Property(e => e.operator_user).HasMaxLength(100);
             entity.Property(e => e.reception_date).HasColumnType("datetime");
             entity.Property(e => e.reception_number).HasMaxLength(30);

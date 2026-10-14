@@ -20,13 +20,14 @@ namespace KitchenTraceability.Infrastructure.Persistance.Data.Configurations
 
             entity.Property(e => e.created_at).HasDefaultValueSql("CURRENT_TIMESTAMP").HasColumnType("datetime");
             entity.Property(e => e.lot_number).HasMaxLength(100);
+            entity.Property(e => e.guide_number).HasMaxLength(100);
             entity.Property(e => e.lot_size).HasPrecision(18, 3);
-            entity.Property(e => e.lot_size_unit).HasMaxLength(10);
+            entity.Property(e => e.lot_size_unit).HasMaxLength(30);
             entity.Property(e => e.unit_count).HasPrecision(18, 3);
             entity.Property(e => e.shelf_life_comments).HasColumnType("text");
             entity.Property(e => e.lot_status).HasMaxLength(30).HasDefaultValueSql("'PENDING_APPROVAL'");
             entity.Property(e => e.product_reference).HasMaxLength(100);
-            entity.Property(e => e.unit_of_measure).HasMaxLength(20);
+            entity.Property(e => e.unit_of_measure).HasMaxLength(100);
 
             entity.HasOne(d => d.reception)
                 .WithMany(p => p.receptionLots)
