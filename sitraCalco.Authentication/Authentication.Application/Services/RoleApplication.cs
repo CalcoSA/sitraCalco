@@ -64,23 +64,23 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para crear un rol y sus opciones de menú asociadas.
         /// </summary>
         /// <param name="entity">Type: CreateRoleDto - Información del rol a crear</param>
-        /// <returns>Type: bool - True si el rol fue creado correctamente</returns>
-        public async Task<bool> Create(CreateRoleDto entity)
+        /// <returns>Resultado de la operación y descripción de auditoría si fue exitosa</returns>
+        public async Task<AuditResultDto> Create(CreateRoleDto entity)
         {
             try
             {
                 if (entity is null || string.IsNullOrWhiteSpace(entity.NameRole))
-                    return false;
+                    return new AuditResultDto();
 
                 var roleNameExists = await _roleRepository.ExistsByName(entity.NameRole);
 
                 if (roleNameExists)
-                    return false;
+                    return new AuditResultDto();
 
                 var menuOptionsExist = await _roleRepository.MenuOptionsExist(entity.MenuOptionIds);
 
                 if (!menuOptionsExist)
-                    return false;
+                    return new AuditResultDto();
 
                 var role = new Role
                 {
@@ -90,7 +90,11 @@ namespace Authentication.Application.Services
 
                 await _roleRepository.CreateRole(role, entity.MenuOptionIds);
 
-                return true;
+                return new AuditResultDto
+                {
+                    IsSuccess = true,
+                    Description = $"Se creó el rol {role.NameRole} con sus opciones de menú."
+                };
             }
             catch (Exception ex)
             {
@@ -103,28 +107,28 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para actualizar un rol y sus opciones de menú asociadas.
         /// </summary>
         /// <param name="entity">Type: UpdateRoleDto - Información del rol a actualizar</param>
-        /// <returns>Type: bool - True si el rol fue actualizado correctamente</returns>
-        public async Task<bool> Update(UpdateRoleDto entity)
+        /// <returns>Resultado de la operación y descripción de auditoría si fue exitosa</returns>
+        public async Task<AuditResultDto> Update(UpdateRoleDto entity)
         {
             try
             {
                 if (entity is null || entity.IdRole <= 0 || string.IsNullOrWhiteSpace(entity.NameRole))
-                    return false;
+                    return new AuditResultDto();
 
                 var currentRole = await _roleRepository.GetById(entity.IdRole);
 
                 if (currentRole is null)
-                    return false;
+                    return new AuditResultDto();
 
                 var roleNameExists = await _roleRepository.ExistsByName(entity.NameRole, entity.IdRole);
 
                 if (roleNameExists)
-                    return false;
+                    return new AuditResultDto();
 
                 var menuOptionsExist = await _roleRepository.MenuOptionsExist(entity.MenuOptionIds);
 
                 if (!menuOptionsExist)
-                    return false;
+                    return new AuditResultDto();
 
                 var role = new Role
                 {
@@ -135,7 +139,11 @@ namespace Authentication.Application.Services
 
                 await _roleRepository.UpdateRole(role, entity.MenuOptionIds);
 
-                return true;
+                return new AuditResultDto
+                {
+                    IsSuccess = true,
+                    Description = $"Se actualizó el rol {role.NameRole}: estado {(role.StatusRole == 1 ? "activo" : "inactivo")} y opciones de menú."
+                };
             }
             catch (Exception ex)
             {
@@ -148,22 +156,27 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para eliminar un rol por IdRole.
         /// </summary>
         /// <param name="idRole">Type: int - Identificador del rol a eliminar</param>
-        /// <returns>Type: bool - True si el rol fue eliminado correctamente</returns>
-        public async Task<bool> Delete(int idRole)
+        /// <returns>Resultado de la operación y descripción de auditoría si fue exitosa</returns>
+        public async Task<AuditResultDto> Delete(int idRole)
         {
             try
             {
                 if (idRole <= 0)
-                    return false;
+                    return new AuditResultDto();
 
                 var role = await _roleRepository.GetById(idRole);
 
                 if (role is null)
-                    return false;
+                    return new AuditResultDto();
 
+                var roleName = role.NameRole;
                 await _roleRepository.DeleteRole(idRole);
 
-                return true;
+                return new AuditResultDto
+                {
+                    IsSuccess = true,
+                    Description = $"Se eliminó el rol {roleName} y sus opciones de menú asociadas."
+                };
             }
             catch (Exception ex)
             {

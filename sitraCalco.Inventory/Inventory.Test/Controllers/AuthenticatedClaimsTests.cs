@@ -80,8 +80,8 @@ namespace Inventory.Test.Controllers
             repository.Setup(x => x.SectionBelongsToSolutionCenter(1, 2)).ReturnsAsync(true);
             repository.Setup(x => x.GetSectionProducts(1, 2))
                 .ReturnsAsync(Array.Empty<Product>());
-            repository.Setup(x => x.AddProductToSection(1, 2, 10, 1, "juan.zapata"))
-                .ReturnsAsync(100);
+            repository.Setup(x => x.AddProductToSection(1, 2, It.Is<Product>(p => p.product_id == 10), 1, "juan.zapata"))
+                .ReturnsAsync(new AuditResult<long>(100, "Se agregó el producto Arroz Blanco (referencia AR001, unidad KG) a la sección Pasillo 1 del centro de solución BL07 en la posición 3."));
 
             var products = new Mock<IProductRepository>(MockBehavior.Strict);
             products.Setup(x => x.GetProductById(10)).ReturnsAsync(new Product
@@ -106,7 +106,7 @@ namespace Inventory.Test.Controllers
             var result = await controller.AddProductToSection(1, 2, request);
 
             Assert.IsType<OkObjectResult>(result);
-            repository.Verify(x => x.AddProductToSection(1, 2, 10, 1, "juan.zapata"), Times.Once);
+            repository.Verify(x => x.AddProductToSection(1, 2, It.Is<Product>(p => p.product_id == 10), 1, "juan.zapata"), Times.Once);
             logs.Verify(x => x.CreateLog(It.Is<CreateLogDto>(log =>
                 log.UserName == "juan.zapata")), Times.Once);
         }

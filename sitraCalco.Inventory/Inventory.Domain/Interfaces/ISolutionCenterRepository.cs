@@ -15,7 +15,7 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> SolutionCenterExists(long solutionCenterId);
 
-        Task<long> CreateSectionConfiguration(long solutionCenterId,Section section,List<SectionProductDto> products,string createdBy);
+        Task<AuditResult<long>> CreateSectionConfiguration(long solutionCenterId,Section section,List<SectionProductDto> products,string createdBy);
 
         Task<bool> SolutionCenterNameExists(string solutionCenterName);
 
@@ -27,7 +27,7 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> UpdateSolutionCenterStatus(long solutionCenterId,bool isActive);
 
-        Task<bool> UpdateSectionStatus(long sectionId,bool isActive);
+        Task<AuditResult<bool>> UpdateSectionStatus(long sectionId,bool isActive);
 
         Task<IEnumerable<Product>> GetSectionProducts(long solutionCenterId,long sectionId);
 
@@ -41,11 +41,11 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> UpdateSectionAssignmentStatus(long solutionCenterId,long sectionId,bool isActive);
 
-        Task<long> AddProductToSection(long solutionCenterId,long sectionId,long productId,int position,string createdBy);
+        Task<AuditResult<long>> AddProductToSection(long solutionCenterId,long sectionId,Product product,int position,string createdBy);
 
-        Task<bool> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
+        Task<AuditResult<bool>> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);
 
-        Task<bool> DeleteProductFromSection(long solutionCenterId,long sectionId,long solutionCenterProductId);
+        Task<AuditResult<bool>> DeleteProductFromSection(long solutionCenterId,long sectionId,long solutionCenterProductId);
 
         Task<bool> SolutionCenterCodeExists(string solutionCenterCode,long excludeSolutionCenterId);
 

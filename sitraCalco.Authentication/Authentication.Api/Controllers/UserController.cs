@@ -165,7 +165,7 @@ namespace Authentication.Api.Controllers
 
                 var created = await _userApplication.Create(request);
 
-                if (!created)
+                if (!created.IsSuccess)
                 {
                     return BadRequest(new ResponseApi
                     {
@@ -179,7 +179,7 @@ namespace Authentication.Api.Controllers
                 {
                     Action = "Crear",
                     Module = "ConfiguracionUsuarios",
-                    Description = $"Se creó el usuario {request.UserLogin!.Trim()} con el rol {request.IdRole}.",
+                    Description = created.Description,
                     UserName = userName
                 });
 
@@ -233,7 +233,7 @@ namespace Authentication.Api.Controllers
 
                 var updated = await _userApplication.Update(request);
 
-                if (!updated)
+                if (!updated.IsSuccess)
                 {
                     return BadRequest(new ResponseApi
                     {
@@ -247,7 +247,7 @@ namespace Authentication.Api.Controllers
                 {
                     Action = "Actualizar",
                     Module = "ConfiguracionUsuarios",
-                    Description = $"Se actualizó el usuario {request.IdUser}: rol {request.IdRole} y estado {(request.StatusUser ? "activo" : "inactivo")}.",
+                    Description = updated.Description,
                     UserName = userName
                 });
 
@@ -299,7 +299,7 @@ namespace Authentication.Api.Controllers
 
                 var deleted = await _userApplication.Delete(idUser);
 
-                if (!deleted)
+                if (!deleted.IsSuccess)
                 {
                     return NotFound(new ResponseApi
                     {
@@ -313,7 +313,7 @@ namespace Authentication.Api.Controllers
                 {
                     Action = "Eliminar",
                     Module = "ConfiguracionUsuarios",
-                    Description = $"Se eliminó el usuario {idUser}.",
+                    Description = deleted.Description,
                     UserName = userName
                 });
 

@@ -1,4 +1,5 @@
-﻿using Inventory.Domain.Dtos;
+﻿using Inventory.Domain.Helpers;
+using Inventory.Domain.Dtos;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
 using Inventory.Infrastructure.Persistance.Data;
@@ -140,14 +141,19 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         /// Guarda las asociaciones de una configuración
         /// de inventario en una sola operación.
         /// </summary>
-        public async Task<int> CreateAssignments(
+        public async Task<AuditResult<int>> CreateAssignments(
             IEnumerable<InventoryConfigurationAssignment> assignments)
         {
             var assignmentsToCreate =
                 assignments.ToList();
 
             if (assignmentsToCreate.Count == 0)
-                return 0;
+                return new(0);
+
+            var configurationName = await _context.InventoryConfigurations
+                .Where(configuration => configuration.inventory_configuration_id == assignmentsToCreate[0].inventory_configuration_id)
+                .Select(configuration => configuration.inventory_configuration_name)
+                .SingleOrDefaultAsync();
 
             await _context
                 .InventoryConfigurationAssignments
@@ -155,7 +161,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             await _context.SaveChangesAsync();
 
-            return assignmentsToCreate.Count;
+            return new(assignmentsToCreate.Count, AuditDescription.Format(
+                $"Se agregaron {assignmentsToCreate.Count} asignaciones a la configuración de inventario {AuditDescription.Name(configurationName, assignmentsToCreate[0].inventory_configuration_id)}."));
         }
 
         /// <summary>
@@ -957,32 +964,25 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         /// Actualiza el estado de una asociación entre
         /// configuración de inventario, bodega o punto de venta y sección.
         /// </summary>
-        public async Task<bool> UpdateAssignmentStatus(
+        public async Task<AuditResult<bool>> UpdateAssignmentStatus(
             long inventoryConfigurationId,
             long solutionCenterId,
             long sectionId,
             bool isActive)
         {
-            var assignment =
-                await _context.InventoryConfigurationAssignments
-                    .FirstOrDefaultAsync(item =>
-                        item.inventory_configuration_id ==
-                            inventoryConfigurationId
-                        &&
-                        item.solution_center_id ==
-                            solutionCenterId
-                        &&
-                        item.section_id ==
-                            sectionId);
+            var auditContext = await GetAssignmentAuditContext(
+                inventoryConfigurationId, solutionCenterId, sectionId);
+            var assignment = auditContext?.Assignment;
 
             if (assignment is null)
-                return false;
+                return new(false);
 
             assignment.is_active = isActive;
 
             await _context.SaveChangesAsync();
 
-            return true;
+            return new(true, AuditDescription.Format(
+                $"Se {(assignment.is_active ? "activó" : "inactivó")} la sección {AuditDescription.Name(auditContext!.SectionName, sectionId)} para el centro de solución {AuditDescription.Name(auditContext.SolutionCenterName, solutionCenterId)} en la configuración de inventario {AuditDescription.Name(auditContext.ConfigurationName, inventoryConfigurationId)}."));
         }
         /// <summary>
         /// Valida si existe otra configuración de inventario
@@ -1062,110 +1062,149 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         /// Agrega varios días a una configuración
         /// de inventario en una sola operación.
         /// </summary>
-        public async Task<int> AddDays(
+        public async Task<AuditResult<int>> AddDays(
             IEnumerable<InventoryConfigurationDay> days)
         {
             var daysToCreate =
                 days.ToList();
 
             if (daysToCreate.Count == 0)
-                return 0;
+                return new(0);
+
+            var configurationName = await _context.InventoryConfigurations
+                .Where(configuration => configuration.inventory_configuration_id == daysToCreate[0].inventory_configuration_id)
+                .Select(configuration => configuration.inventory_configuration_name)
+                .SingleOrDefaultAsync();
 
             await _context.InventoryConfigurationDays
                 .AddRangeAsync(daysToCreate);
 
             await _context.SaveChangesAsync();
 
-            return daysToCreate.Count;
+            return new(daysToCreate.Count, AuditDescription.Format(
+                $"Se agregaron los días {string.Join(", ", daysToCreate.Select(day => day.day_of_week))} a la configuración de inventario {AuditDescription.Name(configurationName, daysToCreate[0].inventory_configuration_id)}."));
         }
         /// <summary>
         /// Elimina un día específico de una
         /// configuración de inventario.
         /// </summary>
-        public async Task<bool> DeleteDay(
+        public async Task<AuditResult<bool>> DeleteDay(
             long inventoryConfigurationId,
             string dayOfWeek)
         {
             var normalizedDay =
                 dayOfWeek.Trim().ToUpper();
 
-            var day =
-                await _context.InventoryConfigurationDays
-                    .FirstOrDefaultAsync(item =>
-                        item.inventory_configuration_id ==
-                            inventoryConfigurationId
-                        &&
-                        item.day_of_week.ToUpper() ==
-                            normalizedDay);
+            var auditContext = await (
+                from item in _context.InventoryConfigurationDays
+                join configuration in _context.InventoryConfigurations
+                    on item.inventory_configuration_id equals configuration.inventory_configuration_id into configurations
+                from configuration in configurations.DefaultIfEmpty()
+                where item.inventory_configuration_id == inventoryConfigurationId
+                    && item.day_of_week.ToUpper() == normalizedDay
+                select new { Day = item, ConfigurationName = configuration != null ? configuration.inventory_configuration_name : null })
+                .FirstOrDefaultAsync();
+            var day = auditContext?.Day;
 
             if (day is null)
-                return false;
+                return new(false);
+
+            var description = AuditDescription.Format(
+                $"Se eliminó el día {day.day_of_week} de la configuración de inventario {AuditDescription.Name(auditContext!.ConfigurationName, inventoryConfigurationId)}.");
 
             _context.InventoryConfigurationDays
                 .Remove(day);
 
             await _context.SaveChangesAsync();
 
-            return true;
+            return new(true, description);
         }
         /// <summary>
         /// Elimina una asociación específica entre
         /// configuración de inventario, Solution Center y sección.
         /// </summary>
-        public async Task<bool> DeleteAssignment(
+        public async Task<AuditResult<bool>> DeleteAssignment(
             long inventoryConfigurationId,
             long solutionCenterId,
             long sectionId)
         {
-            var assignment =
-                await _context.InventoryConfigurationAssignments
-                    .FirstOrDefaultAsync(item =>
-                        item.inventory_configuration_id ==
-                            inventoryConfigurationId
-                        &&
-                        item.solution_center_id ==
-                            solutionCenterId
-                        &&
-                        item.section_id ==
-                            sectionId);
+            var auditContext = await GetAssignmentAuditContext(
+                inventoryConfigurationId, solutionCenterId, sectionId);
+            var assignment = auditContext?.Assignment;
 
             if (assignment is null)
-                return false;
+                return new(false);
+
+            var description = AuditDescription.Format(
+                $"Se eliminó la asociación de la sección {AuditDescription.Name(auditContext!.SectionName, sectionId)} del centro de solución {AuditDescription.Name(auditContext.SolutionCenterName, solutionCenterId)} en la configuración de inventario {AuditDescription.Name(auditContext.ConfigurationName, inventoryConfigurationId)}.");
 
             _context.InventoryConfigurationAssignments
                 .Remove(assignment);
 
             await _context.SaveChangesAsync();
 
-            return true;
+            return new(true, description);
         }
         /// <summary>
         /// Elimina todas las asociaciones de una sección
         /// dentro de una configuración de inventario.
         /// </summary>
-        public async Task<int> DeleteAssignmentsBySection(
+        public async Task<AuditResult<int>> DeleteAssignmentsBySection(
             long inventoryConfigurationId,
             long sectionId)
         {
-            var assignments =
-                await _context.InventoryConfigurationAssignments
-                    .Where(item =>
-                        item.inventory_configuration_id ==
-                            inventoryConfigurationId
-                        &&
-                        item.section_id ==
-                            sectionId)
-                    .ToListAsync();
+            var auditContexts = await (
+                from assignment in _context.InventoryConfigurationAssignments
+                join configuration in _context.InventoryConfigurations
+                    on assignment.inventory_configuration_id equals configuration.inventory_configuration_id into configurations
+                from configuration in configurations.DefaultIfEmpty()
+                join section in _context.Sections on assignment.section_id equals section.section_id into sections
+                from section in sections.DefaultIfEmpty()
+                where assignment.inventory_configuration_id == inventoryConfigurationId && assignment.section_id == sectionId
+                select new { Assignment = assignment,
+                    ConfigurationName = configuration != null ? configuration.inventory_configuration_name : null,
+                    SectionName = section != null ? section.section_name : null })
+                .ToListAsync();
+            var assignments = auditContexts.Select(context => context.Assignment).ToList();
 
             if (assignments.Count == 0)
-                return 0;
+                return new(0);
+
+            var description = AuditDescription.Format(
+                $"Se eliminó la sección {AuditDescription.Name(auditContexts[0].SectionName, sectionId)} de {assignments.Count} asociación(es) de la configuración de inventario {AuditDescription.Name(auditContexts[0].ConfigurationName, inventoryConfigurationId)}.");
 
             _context.InventoryConfigurationAssignments
                 .RemoveRange(assignments);
 
             await _context.SaveChangesAsync();
 
-            return assignments.Count;
+            return new(assignments.Count, description);
+        }
+        private sealed record AssignmentAuditContext(
+            InventoryConfigurationAssignment Assignment,
+            string? ConfigurationName,
+            string? SolutionCenterName,
+            string? SectionName);
+
+        private Task<AssignmentAuditContext?> GetAssignmentAuditContext(
+            long inventoryConfigurationId, long solutionCenterId, long sectionId)
+        {
+            return (
+                from assignment in _context.InventoryConfigurationAssignments
+                join configuration in _context.InventoryConfigurations
+                    on assignment.inventory_configuration_id equals configuration.inventory_configuration_id into configurations
+                from configuration in configurations.DefaultIfEmpty()
+                join center in _context.SolutionCenters on assignment.solution_center_id equals center.solution_center_id into centers
+                from center in centers.DefaultIfEmpty()
+                join section in _context.Sections on assignment.section_id equals section.section_id into sections
+                from section in sections.DefaultIfEmpty()
+                where assignment.inventory_configuration_id == inventoryConfigurationId
+                    && assignment.solution_center_id == solutionCenterId && assignment.section_id == sectionId
+                select new AssignmentAuditContext(assignment,
+                    configuration != null ? configuration.inventory_configuration_name : null,
+                    center != null ? center.solution_center_name : null,
+                    section != null ? section.section_name : null))
+                .FirstOrDefaultAsync();
         }
     }
 }

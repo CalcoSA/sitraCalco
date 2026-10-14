@@ -254,11 +254,13 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var createdAssignments =
+                var auditResult =
                     await _inventoryConfigurationApplication
                         .CreateAssignments(
                             inventoryConfigurationId,
                             request);
+
+                var createdAssignments = auditResult.Value;
 
                 if (createdAssignments <= 0)
                 {
@@ -279,10 +281,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Crear",
                         Module = "ConfiguracionInventarios",
-                        Description =
-                            $"Se agregaron {createdAssignments} asignaciones " +
-                            $"a la configuración de inventario con ID " +
-                            $"{inventoryConfigurationId}.",
+                        Description = auditResult.Description,
                         UserName = userName.Trim()
                     });
 
@@ -1139,13 +1138,15 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var updated =
+                var auditResult =
                     await _inventoryConfigurationApplication
                         .UpdateAssignmentStatus(
                             inventoryConfigurationId,
                             solutionCenterId,
                             sectionId,
                             request.IsActive!.Value);
+
+                var updated = auditResult.Value;
 
                 if (!updated)
                 {
@@ -1164,16 +1165,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Actualizar",
                         Module = "ConfiguracionInventarios",
-                        Description =
-                            request.IsActive.Value
-                                ? $"Se activó la sección con ID {sectionId} " +
-                                  $"para el centro con ID {solutionCenterId} " +
-                                  $"en la configuración de inventario con ID " +
-                                  $"{inventoryConfigurationId}."
-                                : $"Se inactivó la sección con ID {sectionId} " +
-                                  $"para el centro con ID {solutionCenterId} " +
-                                  $"en la configuración de inventario con ID " +
-                                  $"{inventoryConfigurationId}.",
+                        Description = auditResult.Description,
                         UserName =
                             userName.Trim()
                     });
@@ -1312,8 +1304,7 @@ namespace Inventory.Api.Controllers
                         Module = "ConfiguracionInventarios",
                         Description =
                             $"Se actualizó la configuración de inventario " +
-                            $"{request.InventoryConfigurationName.Trim()} " +
-                            $"con ID {inventoryConfigurationId}. " +
+                            $"{request.InventoryConfigurationName.Trim()}. " +
                             $"Fecha de inicio: " +
                             $"{(request.StartDate.HasValue
                                 ? request.StartDate.Value.ToString("yyyy-MM-dd")
@@ -1426,11 +1417,13 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var daysCreated =
+                var auditResult =
                     await _inventoryConfigurationApplication
                         .AddDays(
                             inventoryConfigurationId,
                             request);
+
+                var daysCreated = auditResult.Value;
 
                 if (daysCreated <= 0)
                 {
@@ -1450,11 +1443,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Crear",
                         Module = "ConfiguracionInventarios",
-                        Description =
-                            $"Se agregaron los días " +
-                            $"{string.Join(", ", request.Days)} " +
-                            $"a la configuración de inventario con ID " +
-                            $"{inventoryConfigurationId}.",
+                        Description = auditResult.Description,
                         UserName =
                             userName.Trim()
                     });
@@ -1539,11 +1528,13 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var deleted =
+                var auditResult =
                     await _inventoryConfigurationApplication
                         .DeleteDay(
                             inventoryConfigurationId,
                             dayOfWeek);
+
+                var deleted = auditResult.Value;
 
                 if (!deleted)
                 {
@@ -1561,10 +1552,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Eliminar",
                         Module = "ConfiguracionInventarios",
-                        Description =
-                            $"Se eliminó el día {dayOfWeek.Trim()} " +
-                            $"de la configuración de inventario con ID " +
-                            $"{inventoryConfigurationId}.",
+                        Description = auditResult.Description,
                         UserName =
                             userName.Trim()
                     });
@@ -1641,12 +1629,14 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var deleted =
+                var auditResult =
                     await _inventoryConfigurationApplication
                         .DeleteAssignment(
                             inventoryConfigurationId,
                             solutionCenterId,
                             sectionId);
+
+                var deleted = auditResult.Value;
 
                 if (!deleted)
                 {
@@ -1664,11 +1654,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Eliminar",
                         Module = "ConfiguracionInventarios",
-                        Description =
-                            $"Se eliminó la asociación de la sección con ID " +
-                            $"{sectionId} del centro con ID {solutionCenterId} " +
-                            $"en la configuración de inventario con ID " +
-                            $"{inventoryConfigurationId}.",
+                        Description = auditResult.Description,
                         UserName =
                             userName.Trim()
                     });
@@ -1749,11 +1735,13 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var deletedAssignments =
+                var auditResult =
                     await _inventoryConfigurationApplication
                         .DeleteAssignmentsBySection(
                             inventoryConfigurationId,
                             sectionId);
+
+                var deletedAssignments = auditResult.Value;
 
                 if (deletedAssignments <= 0)
                 {
@@ -1772,11 +1760,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Eliminar",
                         Module = "ConfiguracionInventarios",
-                        Description =
-                            $"Se eliminó la sección con ID {sectionId} " +
-                            $"de {deletedAssignments} asociación(es) " +
-                            $"de la configuración de inventario con ID " +
-                            $"{inventoryConfigurationId}.",
+                        Description = auditResult.Description,
                         UserName =
                             userName.Trim()
                     });

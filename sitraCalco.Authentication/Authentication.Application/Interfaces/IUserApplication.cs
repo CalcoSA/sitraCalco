@@ -6,8 +6,8 @@ namespace Authentication.Application.Interfaces
     {
         Task<PagedDto<UserDto>> GetAll(int page, int take, string? search);
         Task<UserDto> GetById(int idUser);
-        Task<bool> Create(CreateUserDto entity);
-        Task<bool> Update(UpdateUserDto entity);
-        Task<bool> Delete(int idUser);
+        Task<AuditResultDto> Create(CreateUserDto entity);
+        Task<AuditResultDto> Update(UpdateUserDto entity);
+        Task<AuditResultDto> Delete(int idUser);
     }
 }
