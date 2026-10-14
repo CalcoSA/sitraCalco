@@ -209,12 +209,14 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var sectionId =
+                var auditResult =
                     await _solutionCenterApplication
                         .CreateSectionConfiguration(
                             solutionCenterId,
                             request,
                             userName);
+
+                var sectionId = auditResult.Value;
 
                 if (sectionId <= 0)
                 {
@@ -230,19 +232,12 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var solutionCenter =
-                    await _solutionCenterApplication
-                        .GetSolutionCenterById(solutionCenterId);
-
                 await _logApplication.CreateLog(
                     new CreateLogDto
                     {
                         Action = "Crear",
                         Module = "ConfiguracionBodegas",
-                        Description =
-                            $"Se creó la sección {request.SectionName.Trim()} " +
-                            $"en la bodega " +
-                            $"{solutionCenter?.SolutionCenterName ?? solutionCenterId.ToString()}.",
+                        Description = auditResult.Description,
                         UserName = userName.Trim()
                     });
 
@@ -741,11 +736,13 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var updated =
+                var auditResult =
                     await _solutionCenterApplication
                         .UpdateSectionStatus(
                             sectionId,
                             request.IsActive);
+
+                var updated = auditResult.Value;
 
                 if (!updated)
                 {
@@ -763,10 +760,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Actualizar",
                         Module = "ConfiguracionBodegas",
-                        Description =
-                            request.IsActive
-                                ? $"Se activó la sección con ID {sectionId}."
-                                : $"Se inactivó la sección con ID {sectionId}.",
+                        Description = auditResult.Description,
                         UserName = userName.Trim()
                     });
 
@@ -880,13 +874,15 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var solutionCenterProductId =
+                var auditResult =
                     await _solutionCenterApplication
                         .AddProductToSection(
                             solutionCenterId,
                             sectionId,
                             request,
                             userName);
+
+                var solutionCenterProductId = auditResult.Value;
 
                 if (solutionCenterProductId <= 0)
                 {
@@ -907,10 +903,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Crear",
                         Module = "ConfiguracionBodegas",
-                        Description =
-                            $"Se agregó el producto con ID {request.ProductId} " +
-                            $"a la sección con ID {sectionId} " +
-                            $"en la posición {request.Position}.",
+                        Description = auditResult.Description,
                         UserName = userName.Trim()
                     });
 
@@ -1000,13 +993,15 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var updated =
+                var auditResult =
                     await _solutionCenterApplication
                         .UpdateProductOrder(
                             solutionCenterId,
                             sectionId,
                             solutionCenterProductId,
                             request.NewPosition);
+
+                var updated = auditResult.Value;
 
                 if (!updated)
                 {
@@ -1026,11 +1021,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Actualizar",
                         Module = "ConfiguracionBodegas",
-                        Description =
-                            $"Se cambió el orden del producto asociado " +
-                            $"con ID {solutionCenterProductId} " +
-                            $"en la sección con ID {sectionId} " +
-                            $"a la posición {request.NewPosition}.",
+                        Description = auditResult.Description,
                         UserName = userName.Trim()
                     });
 
@@ -1104,12 +1095,14 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var deleted =
+                var auditResult =
                     await _solutionCenterApplication
                         .DeleteProductFromSection(
                             solutionCenterId,
                             sectionId,
                             solutionCenterProductId);
+
+                var deleted = auditResult.Value;
 
                 if (!deleted)
                 {
@@ -1128,10 +1121,7 @@ namespace Inventory.Api.Controllers
                     {
                         Action = "Eliminar",
                         Module = "ConfiguracionBodegas",
-                        Description =
-                            $"Se eliminó el producto asociado con ID " +
-                            $"{solutionCenterProductId} " +
-                            $"de la sección con ID {sectionId}.",
+                        Description = auditResult.Description,
                         UserName = userName.Trim()
                     });
 

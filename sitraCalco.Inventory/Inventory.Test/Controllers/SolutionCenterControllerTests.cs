@@ -479,7 +479,7 @@ namespace Inventory.Test.Controllers
                         1,
                         request,
                         "juan.zapata"))
-                .ReturnsAsync(0);
+                .ReturnsAsync(new AuditResult<long>(0));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -512,7 +512,7 @@ namespace Inventory.Test.Controllers
                         1,
                         request,
                         "juan.zapata"))
-                .ReturnsAsync(2);
+                .ReturnsAsync(new AuditResult<long>(2, "Se creó la sección Linea de sal en el centro de solución Perecederos."));
 
             _solutionCenterApplicationMock
                 .Setup(x =>
@@ -551,12 +551,12 @@ namespace Inventory.Test.Controllers
                         log.Module ==
                             "ConfiguracionBodegas" &&
                         log.Description ==
-                            "Se creó la sección Linea de sal en la bodega Perecederos.")),
+                            "Se creó la sección Linea de sal en el centro de solución Perecederos.")),
                 Times.Once);
         }
 
         [Fact]
-        public async Task CreateSectionConfiguration_ShouldUseIdInLog_WhenSolutionCenterDetailIsNull()
+        public async Task CreateSectionConfiguration_ShouldUseSnapshotWithoutReloadingCenter()
         {
             var request =
                 new CreateSectionConfigurationDto
@@ -571,7 +571,7 @@ namespace Inventory.Test.Controllers
                         5,
                         request,
                         "juan.zapata"))
-                .ReturnsAsync(2);
+                .ReturnsAsync(new AuditResult<long>(2, "Se creó la sección Linea de sal en el centro de solución Perecederos."));
 
             _solutionCenterApplicationMock
                 .Setup(x =>
@@ -592,8 +592,10 @@ namespace Inventory.Test.Controllers
                 x => x.CreateLog(
                     It.Is<CreateLogDto>(log =>
                         log.Description.Contains(
-                            "en la bodega 5."))),
+                            "en el centro de solución Perecederos."))),
                 Times.Once);
+            _solutionCenterApplicationMock.Verify(
+                x => x.GetSolutionCenterById(It.IsAny<long>()), Times.Never);
         }
 
         [Fact]
@@ -629,6 +631,8 @@ namespace Inventory.Test.Controllers
             Assert.Equal(
                 500,
                 objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -1524,7 +1528,7 @@ namespace Inventory.Test.Controllers
                     x.UpdateSectionStatus(
                         2,
                         false))
-                .ReturnsAsync(false);
+                .ReturnsAsync(new AuditResult<bool>(false));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -1534,6 +1538,8 @@ namespace Inventory.Test.Controllers
 
             Assert.IsType<NotFoundObjectResult>(
                 result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Theory]
@@ -1555,7 +1561,7 @@ namespace Inventory.Test.Controllers
                     x.UpdateSectionStatus(
                         2,
                         isActive))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new AuditResult<bool>(true, isActive ? "Se activó la sección Pasillo 1." : "Se inactivó la sección Pasillo 1."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -1582,7 +1588,7 @@ namespace Inventory.Test.Controllers
                 x => x.CreateLog(
                     It.Is<CreateLogDto>(log =>
                         log.Action ==
-                            "Actualizar")),
+                            "Actualizar" && log.Description == (isActive ? "Se activó la sección Pasillo 1." : "Se inactivó la sección Pasillo 1."))),
                 Times.Once);
         }
 
@@ -1617,6 +1623,8 @@ namespace Inventory.Test.Controllers
             Assert.Equal(
                 500,
                 objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -1759,7 +1767,7 @@ namespace Inventory.Test.Controllers
                         1,
                         2,
                         request, "juan.zapata"))
-                .ReturnsAsync(0);
+                .ReturnsAsync(new AuditResult<long>(0));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -1793,7 +1801,7 @@ namespace Inventory.Test.Controllers
                         1,
                         2,
                         request, "juan.zapata"))
-                .ReturnsAsync(100);
+                .ReturnsAsync(new AuditResult<long>(100, "Se agregó el producto Arroz Blanco (referencia AR001, unidad KG) a la sección Pasillo 1 del centro de solución BL07 en la posición 3."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "  juan.zapata  ")
@@ -1826,7 +1834,7 @@ namespace Inventory.Test.Controllers
                         log.UserName ==
                             "juan.zapata" &&
                         log.Description.Contains(
-                            "ID 10") &&
+                            "Arroz Blanco (referencia AR001, unidad KG)") &&
                         log.Description.Contains(
                             "posición 3"))),
                 Times.Once);
@@ -1866,6 +1874,8 @@ namespace Inventory.Test.Controllers
             Assert.Equal(
                 500,
                 objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -1967,7 +1977,7 @@ namespace Inventory.Test.Controllers
                         2,
                         3,
                         2))
-                .ReturnsAsync(false);
+                .ReturnsAsync(new AuditResult<bool>(false));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -1979,6 +1989,8 @@ namespace Inventory.Test.Controllers
 
             Assert.IsType<BadRequestObjectResult>(
                 result);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -1997,7 +2009,7 @@ namespace Inventory.Test.Controllers
                         2,
                         3,
                         2))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new AuditResult<bool>(true, "Se cambió el orden del producto Arroz Blanco (referencia AR001, unidad KG) en la sección Pasillo 1 del centro de solución BL07 a la posición 2."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2067,6 +2079,8 @@ namespace Inventory.Test.Controllers
             Assert.Equal(
                 500,
                 objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================
@@ -2111,7 +2125,7 @@ namespace Inventory.Test.Controllers
                         1,
                         2,
                         3))
-                .ReturnsAsync(false);
+                .ReturnsAsync(new AuditResult<bool>(false));
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2135,6 +2149,8 @@ namespace Inventory.Test.Controllers
                 "No se pudo eliminar el producto de la sección. " +
                 "Verifique que el producto pertenezca a una asignación activa del centro y la sección.",
                 response.Message);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         [Fact]
@@ -2146,7 +2162,7 @@ namespace Inventory.Test.Controllers
                         1,
                         2,
                         3))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new AuditResult<bool>(true, "Se eliminó el producto Arroz Blanco (referencia AR001, unidad KG) de la sección Pasillo 1 del centro de solución BL07."));
 
             var result =
                 await _controller.WithIdentity(userLogin: "  juan.zapata  ")
@@ -2180,7 +2196,7 @@ namespace Inventory.Test.Controllers
                         log.UserName ==
                             "juan.zapata" &&
                         log.Description.Contains(
-                            "ID 3"))),
+                            "Arroz Blanco (referencia AR001, unidad KG)"))),
                 Times.Once);
         }
 
@@ -2211,6 +2227,8 @@ namespace Inventory.Test.Controllers
             Assert.Equal(
                 500,
                 objectResult.StatusCode);
+            _logApplicationMock.Verify(
+                x => x.CreateLog(It.IsAny<CreateLogDto>()), Times.Never);
         }
 
         // =========================================================

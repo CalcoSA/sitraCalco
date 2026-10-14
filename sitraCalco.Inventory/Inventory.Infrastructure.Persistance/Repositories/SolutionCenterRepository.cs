@@ -1,4 +1,5 @@
-﻿using Inventory.Domain.Dtos;
+﻿using Inventory.Domain.Helpers;
+using Inventory.Domain.Dtos;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
 using Inventory.Infrastructure.Persistance.Data;
@@ -63,7 +64,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     x.solution_center_id == solutionCenterId);
         }
 
-        public async Task<long> CreateSectionConfiguration(long solutionCenterId,Section section,List<SectionProductDto> products, string createdBy)
+        public async Task<AuditResult<long>> CreateSectionConfiguration(long solutionCenterId,Section section,List<SectionProductDto> products, string createdBy)
         {
             await using var transaction =
                 await _context.Database.BeginTransactionAsync();
@@ -71,6 +72,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             try
             {
                 
+                var centerName = await _context.SolutionCenters
+                    .Where(center => center.solution_center_id == solutionCenterId)
+                    .Select(center => center.solution_center_name)
+                    .SingleOrDefaultAsync();
+
                 await _context.Sections.AddAsync(section);
 
                 await _context.SaveChangesAsync();
@@ -111,7 +117,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 
                 await transaction.CommitAsync();
 
-                return sectionId;
+                return new(sectionId, AuditDescription.Format(
+                    $"Se creó la sección {section.section_name} en el centro de solución {AuditDescription.Name(centerName, solutionCenterId)}."));
             }
             catch
             {
@@ -346,7 +353,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             return true;
         }
 
-        public async Task<bool> UpdateSectionStatus(
+        public async Task<AuditResult<bool>> UpdateSectionStatus(
     long sectionId,
     bool isActive)
         {
@@ -355,13 +362,14 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     x.section_id == sectionId);
 
             if (section is null)
-                return false;
+                return new(false);
 
             section.is_active = isActive;
 
             await _context.SaveChangesAsync();
 
-            return true;
+            return new(true, AuditDescription.Format(
+                $"Se {(section.is_active ? "activó" : "inactivó")} la sección {section.section_name}."));
         }
 
         public async Task<bool> SectionBelongsToSolutionCenter(
@@ -448,10 +456,10 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             ).ToListAsync();
         }
 
-        public async Task<long> AddProductToSection(
+        public async Task<AuditResult<long>> AddProductToSection(
     long solutionCenterId,
     long sectionId,
-    long productId,
+    Product productToAdd,
     int position,
     string createdBy)
         {
@@ -461,6 +469,13 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             try
             {
                 
+                var location = await (
+                    from center in _context.SolutionCenters
+                    from section in _context.Sections
+                    where center.solution_center_id == solutionCenterId && section.section_id == sectionId
+                    select new { center.solution_center_name, section.section_name })
+                    .SingleOrDefaultAsync();
+
                 var productsToMove =
                     await _context.SolutionCenterProducts
                         .Where(x =>
@@ -486,7 +501,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                             sectionId,
 
                         product_id =
-                            productId,
+                            productToAdd.product_id,
 
                         sort_order =
                             position,
@@ -505,8 +520,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
                 await transaction.CommitAsync();
 
-                return newAssociation
-                    .solution_center_product_id;
+                return new(newAssociation.solution_center_product_id, AuditDescription.Format(
+                    $"Se agregó el producto {productToAdd.product_name} (referencia {productToAdd.reference}, unidad {productToAdd.unit_of_measure}) a la sección {AuditDescription.Name(location?.section_name, sectionId)} del centro de solución {AuditDescription.Name(location?.solution_center_name, solutionCenterId)} en la posición {newAssociation.sort_order}."));
             }
             catch
             {
@@ -514,7 +529,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 throw;
             }
         }
-        public async Task<bool> UpdateProductOrder(
+        public async Task<AuditResult<bool>> UpdateProductOrder(
     long solutionCenterId,
     long sectionId,
     long solutionCenterProductId,
@@ -526,23 +541,33 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             try
             {
                 // Producto que queremos mover.
-                var currentProduct =
-                    await _context.SolutionCenterProducts
-                        .FirstOrDefaultAsync(x =>
-                            x.solution_center_product_id ==
-                                solutionCenterProductId
-                            &&
-                            x.solution_center_id ==
-                                solutionCenterId
-                            &&
-                            x.section_id ==
-                                sectionId);
+                var auditContext = await (
+                    from item in _context.SolutionCenterProducts
+                    join product in _context.Products on item.product_id equals product.product_id into products
+                    from product in products.DefaultIfEmpty()
+                    join section in _context.Sections on item.section_id equals section.section_id into sections
+                    from section in sections.DefaultIfEmpty()
+                    join center in _context.SolutionCenters on item.solution_center_id equals center.solution_center_id into centers
+                    from center in centers.DefaultIfEmpty()
+                    where item.solution_center_product_id == solutionCenterProductId
+                        && item.solution_center_id == solutionCenterId && item.section_id == sectionId
+                    select new { Association = item,
+                        ProductName = product != null ? product.product_name : null,
+                        Reference = product != null ? product.reference : null,
+                        UnitOfMeasure = product != null ? product.unit_of_measure : null,
+                        SectionName = section != null ? section.section_name : null,
+                        CenterName = center != null ? center.solution_center_name : null })
+                    .FirstOrDefaultAsync();
+                var currentProduct = auditContext?.Association;
 
                 if (currentProduct is null)
                 {
                     await transaction.RollbackAsync();
-                    return false;
+                    return new(false);
                 }
+
+                var description = AuditDescription.Format(
+                    $"Se cambió el orden del producto {AuditDescription.Name(auditContext!.ProductName, auditContext.Association.product_id)} (referencia {auditContext.Reference ?? "no disponible"}, unidad {auditContext.UnitOfMeasure ?? "no disponible"}) en la sección {AuditDescription.Name(auditContext.SectionName, sectionId)} del centro de solución {AuditDescription.Name(auditContext.CenterName, solutionCenterId)} a la posición {newPosition}.");
 
                 var currentPosition =
                     currentProduct.sort_order;
@@ -552,7 +577,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 if (currentPosition == newPosition)
                 {
                     await transaction.CommitAsync();
-                    return true;
+                    return new(true, description);
                 }
 
                 // Buscar el producto que actualmente
@@ -573,7 +598,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 if (targetProduct is null)
                 {
                     await transaction.RollbackAsync();
-                    return false;
+                    return new(false);
                 }
 
                 // Intercambiar posiciones.
@@ -587,7 +612,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
                 await transaction.CommitAsync();
 
-                return true;
+                return new(true, description);
             }
             catch
             {
@@ -595,7 +620,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 throw;
             }
         }
-        public async Task<bool> DeleteProductFromSection(
+        public async Task<AuditResult<bool>> DeleteProductFromSection(
     long solutionCenterId,
     long sectionId,
     long solutionCenterProductId)
@@ -606,23 +631,33 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             try
             {
                 // Buscar exactamente la asociación que se quiere eliminar.
-                var association =
-                    await _context.SolutionCenterProducts
-                        .FirstOrDefaultAsync(x =>
-                            x.solution_center_product_id ==
-                                solutionCenterProductId
-                            &&
-                            x.solution_center_id ==
-                                solutionCenterId
-                            &&
-                            x.section_id ==
-                                sectionId);
+                var auditContext = await (
+                    from item in _context.SolutionCenterProducts
+                    join product in _context.Products on item.product_id equals product.product_id into products
+                    from product in products.DefaultIfEmpty()
+                    join section in _context.Sections on item.section_id equals section.section_id into sections
+                    from section in sections.DefaultIfEmpty()
+                    join center in _context.SolutionCenters on item.solution_center_id equals center.solution_center_id into centers
+                    from center in centers.DefaultIfEmpty()
+                    where item.solution_center_product_id == solutionCenterProductId
+                        && item.solution_center_id == solutionCenterId && item.section_id == sectionId
+                    select new { Association = item,
+                        ProductName = product != null ? product.product_name : null,
+                        Reference = product != null ? product.reference : null,
+                        UnitOfMeasure = product != null ? product.unit_of_measure : null,
+                        SectionName = section != null ? section.section_name : null,
+                        CenterName = center != null ? center.solution_center_name : null })
+                    .FirstOrDefaultAsync();
+                var association = auditContext?.Association;
 
                 if (association is null)
                 {
                     await transaction.RollbackAsync();
-                    return false;
+                    return new(false);
                 }
+
+                var description = AuditDescription.Format(
+                    $"Se eliminó el producto {AuditDescription.Name(auditContext!.ProductName, auditContext.Association.product_id)} (referencia {auditContext.Reference ?? "no disponible"}, unidad {auditContext.UnitOfMeasure ?? "no disponible"}) de la sección {AuditDescription.Name(auditContext.SectionName, sectionId)} del centro de solución {AuditDescription.Name(auditContext.CenterName, solutionCenterId)}.");
 
                 var deletedPosition =
                     association.sort_order;
@@ -656,7 +691,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
                 await transaction.CommitAsync();
 
-                return true;
+                return new(true, description);
             }
             catch
             {
