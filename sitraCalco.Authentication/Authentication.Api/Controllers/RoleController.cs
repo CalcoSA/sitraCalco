@@ -147,7 +147,7 @@ namespace Authentication.Api.Controllers
 
                 var created = await _roleApplication.Create(request);
 
-                if (!created)
+                if (!created.IsSuccess)
                 {
                     return BadRequest(new ResponseApi
                     {
@@ -161,7 +161,7 @@ namespace Authentication.Api.Controllers
                 {
                     Action = "Crear",
                     Module = "ConfiguracionRoles",
-                    Description = $"Se creó el rol {request.NameRole!.Trim()} con sus opciones de menú.",
+                    Description = created.Description,
                     UserName = userName
                 });
 
@@ -216,7 +216,7 @@ namespace Authentication.Api.Controllers
 
                 var updated = await _roleApplication.Update(request);
 
-                if (!updated)
+                if (!updated.IsSuccess)
                 {
                     return BadRequest(new ResponseApi
                     {
@@ -230,7 +230,7 @@ namespace Authentication.Api.Controllers
                 {
                     Action = "Actualizar",
                     Module = "ConfiguracionRoles",
-                    Description = $"Se actualizó el rol {request.IdRole}: nombre {request.NameRole!.Trim()}, estado {(request.StatusRole == 1 ? "activo" : "inactivo")} y opciones de menú.",
+                    Description = updated.Description,
                     UserName = userName
                 });
 
@@ -283,7 +283,7 @@ namespace Authentication.Api.Controllers
 
                 var deleted = await _roleApplication.Delete(idRole);
 
-                if (!deleted)
+                if (!deleted.IsSuccess)
                 {
                     return NotFound(new ResponseApi
                     {
@@ -297,7 +297,7 @@ namespace Authentication.Api.Controllers
                 {
                     Action = "Eliminar",
                     Module = "ConfiguracionRoles",
-                    Description = $"Se eliminó el rol {idRole} y sus opciones de menú asociadas.",
+                    Description = deleted.Description,
                     UserName = userName
                 });
 
