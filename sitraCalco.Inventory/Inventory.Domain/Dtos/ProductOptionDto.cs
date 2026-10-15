@@ -11,5 +11,9 @@
         public string UnitOfMeasure { get; set; } = null!;
 
         public string? PlanId { get; set; }
+
+        public string? image_path { get; set; }
+
+        public string? ImageUrl { get; set; }
     }
 }

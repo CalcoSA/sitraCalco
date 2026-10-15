@@ -709,10 +709,10 @@ namespace Inventory.Test.Controllers
         {
             // Arrange
             var products =
-                new PagedDto<Product>
+                new PagedDto<ProductListDto>
                 {
                     Items =
-                        new List<Product>(),
+                        new List<ProductListDto>(),
 
                     Total = 0,
 
@@ -763,12 +763,12 @@ namespace Inventory.Test.Controllers
         {
             // Arrange
             var products =
-                new PagedDto<Product>
+                new PagedDto<ProductListDto>
                 {
                     Items =
-                        new List<Product>
+                        new List<ProductListDto>
                         {
-                            new Product()
+                            new ProductListDto()
                         },
 
                     Total = 1,
@@ -824,12 +824,12 @@ namespace Inventory.Test.Controllers
             const string search = "aceite";
 
             var products =
-                new PagedDto<Product>
+                new PagedDto<ProductListDto>
                 {
                     Items =
-                        new List<Product>
+                        new List<ProductListDto>
                         {
-                            new Product()
+                            new ProductListDto()
                         },
 
                     Total = 1,
