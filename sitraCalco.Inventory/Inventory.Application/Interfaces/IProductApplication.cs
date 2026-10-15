@@ -12,7 +12,7 @@ namespace Inventory.Application.Interfaces
         Task<ProductImageResultDto> ReplaceImage(long productId, Stream stream, string fileName, string contentType, long length, string userLogin);
         Task<ProductImageResultDto> DeleteImage(long productId, string userLogin);
 
-        Task<PagedDto<Product>> GetPaged(int page,int take,string? search = null);
+        Task<PagedDto<ProductListDto>> GetPaged(int page,int take,string? search = null);
         Task<IEnumerable<ProductOptionDto>> SearchProducts(string search,int take = 20);
     }
 }

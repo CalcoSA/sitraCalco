@@ -254,9 +254,9 @@ namespace Inventory.Application.Services
         /// Type: int - Cantidad de registros por página.
         /// </param>
         /// <returns>
-        /// Type: PagedDto Product - Resultado paginado.
+        /// Type: PagedDto ProductListDto - Resultado paginado.
         /// </returns>
-        public async Task<PagedDto<Product>> GetPaged(int page,int take,string? search = null)
+        public async Task<PagedDto<ProductListDto>> GetPaged(int page,int take,string? search = null)
         {
             try
             {
@@ -271,7 +271,29 @@ namespace Inventory.Application.Services
                     take,
                     search);
 
-                return products;
+                var items = new List<ProductListDto>();
+                foreach (var product in products.Items)
+                {
+                    items.Add(new ProductListDto
+                    {
+                        product_id = product.product_id,
+                        product_name = product.product_name,
+                        reference = product.reference,
+                        unit_of_measure = product.unit_of_measure,
+                        plan_id = product.plan_id,
+                        image_path = product.image_path,
+                        ImageUrl = await GenerateProductImageUrlAsync(product)
+                    });
+                }
+
+                return new PagedDto<ProductListDto>
+                {
+                    Items = items,
+                    Total = products.Total,
+                    Page = products.Page,
+                    Take = products.Take,
+                    Pages = products.Pages
+                };
             }
             catch
             {
@@ -299,21 +321,39 @@ namespace Inventory.Application.Services
                         search,
                         take);
 
-                return products.Select(product =>
-                    new ProductOptionDto
+                var items = new List<ProductOptionDto>();
+                foreach (var product in products)
+                {
+                    items.Add(new ProductOptionDto
                     {
                         ProductId = product.product_id,
                         ProductName = product.product_name,
                         Reference = product.reference,
                         UnitOfMeasure = product.unit_of_measure,
-                        PlanId = product.plan_id
-                    })
-                    .ToList();
+                        PlanId = product.plan_id,
+                        image_path = product.image_path,
+                        ImageUrl = await GenerateProductImageUrlAsync(product)
+                    });
+                }
+
+                return items;
             }
             catch
             {
                 throw;
             }
+        }
+
+        private async Task<string?> GenerateProductImageUrlAsync(Product product)
+        {
+            if (string.IsNullOrWhiteSpace(product.image_path))
+                return null;
+
+            if (!IsProductImagePath(product.product_id, product.image_path))
+                throw new InvalidOperationException("La ruta de imagen no pertenece al prefijo del producto.");
+
+            var expiresAt = DateTimeOffset.UtcNow.AddMinutes(_storageOptions.SignedUrlExpirationMinutes);
+            return await _storageService.GenerateSignedUrlAsync(product.image_path, expiresAt);
         }
 
     }
