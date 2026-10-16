@@ -25,6 +25,18 @@ namespace Inventory.Infrastructure.Persistance.Data.Configurations
 
             entity.Property(e => e.is_active)
                 .IsRequired();
+
+            entity.Property(e => e.solution_center_type_id)
+                .IsRequired();
+
+            entity.HasIndex(e => e.solution_center_type_id)
+                .HasDatabaseName("ix_section_solution_center_type_id");
+
+            entity.HasOne<SolutionCenterType>()
+                .WithMany()
+                .HasForeignKey(e => e.solution_center_type_id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("fk_section_solution_center_type");
         }
     }
 }

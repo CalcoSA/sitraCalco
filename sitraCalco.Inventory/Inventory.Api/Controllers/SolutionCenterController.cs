@@ -224,10 +224,13 @@ namespace Inventory.Api.Controllers
                     {
                         IsSuccess = false,
                         Message =
+                            !string.IsNullOrWhiteSpace(auditResult.Description) ? auditResult.Description :
                             "No se pudo guardar la configuración de la sección. " +
-                            "Verifique que la bodega exista, que el nombre de la sección no esté repetido, " +
+                            "Verifique que la bodega exista, que id_section sea mayor a cero y corresponda a una sección existente cuando se envíe, " +
+                            "que el nombre de la sección no esté repetido, " +
                             "que los productos sean válidos y que no existan combinaciones repetidas " +
-                            "de nombre y unidad de medida.",
+                            "de nombre y unidad de medida ni posiciones ocupadas. " +
+                            "Si la sección ya existe en el catálogo global, utilice su ID en id_section para reutilizarla.",
                         Result = new { }
                     });
                 }
@@ -412,6 +415,7 @@ namespace Inventory.Api.Controllers
                 SolutionCenterSectionStatus.SectionInactive => (400, "La sección está inactiva en el catálogo. Actívela antes de asignarla o reactivar su asignación."),
                 SolutionCenterSectionStatus.AssignmentNotFound => (404, "La sección no está asignada a la bodega o punto de venta."),
                 SolutionCenterSectionStatus.AlreadyAssigned => (400, "La sección ya está asignada a la bodega o punto de venta."),
+                SolutionCenterSectionStatus.IncompatibleType => (400, "El tipo de la sección no coincide con el tipo del centro de solución."),
                 _ => throw new InvalidOperationException("Resultado de asignación de sección no reconocido.")
             };
 

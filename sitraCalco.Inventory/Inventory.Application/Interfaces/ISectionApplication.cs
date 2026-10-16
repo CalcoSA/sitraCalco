@@ -4,7 +4,7 @@ namespace Inventory.Application.Interfaces
 {
     public interface ISectionApplication
     {
-        Task<IEnumerable<SectionDto>> GetAll();
+        Task<IEnumerable<SectionDto>?> GetAll(long? solutionCenterTypeId = null);
 
         Task<SectionDto?> GetById(long sectionId);
 
