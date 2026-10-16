@@ -72,27 +72,72 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             try
             {
                 
-                var centerName = await _context.SolutionCenters
+                var center = await _context.SolutionCenters
                     .Where(center => center.solution_center_id == solutionCenterId)
-                    .Select(center => center.solution_center_name)
+                    .Select(center => new { center.solution_center_name, center.solution_center_type_id })
                     .SingleOrDefaultAsync();
 
-                await _context.Sections.AddAsync(section);
-
-                await _context.SaveChangesAsync();
-
-                
-                var sectionId = section.section_id;
-
-                await _context.SolutionCenterSections.AddAsync(new SolutionCenterSection
+                if (center is null)
                 {
-                    solution_center_id = solutionCenterId,
-                    section_id = sectionId,
-                    is_active = true
-                });
+                    await transaction.RollbackAsync();
+                    return new(0);
+                }
+
+                var centerName = center.solution_center_name;
+                var isNewSection = section.section_id == 0;
+                if (!isNewSection && section.solution_center_type_id != center.solution_center_type_id)
+                {
+                    await transaction.RollbackAsync();
+                    return new(0, "El tipo de la sección no coincide con el tipo del centro de solución.");
+                }
+
+                if (isNewSection)
+                {
+                    // El tipo proviene exclusivamente del centro persistido, nunca del request.
+                    section.solution_center_type_id = center.solution_center_type_id;
+                    await _context.Sections.AddAsync(section);
+                    await _context.SaveChangesAsync();
+                }
+
+                var sectionId = section.section_id;
+                var productsToAdd = products;
+                var assignmentExists = false;
+
+                if (!isNewSection)
+                {
+                    assignmentExists = await GetSectionAssignment(solutionCenterId, sectionId) is not null;
+
+                    var existingProducts = await _context.SolutionCenterProducts
+                        .AsNoTracking()
+                        .Where(product => product.solution_center_id == solutionCenterId &&
+                            product.section_id == sectionId)
+                        .Select(product => new { product.product_id, product.sort_order })
+                        .ToListAsync();
+
+                    var existingIds = existingProducts.Select(product => product.product_id).ToHashSet();
+                    productsToAdd = products.Where(product => !existingIds.Contains(product.ProductId)).ToList();
+
+                    var occupiedPositions = existingProducts.Select(product => product.sort_order).ToHashSet();
+                    if (productsToAdd.Any(product => occupiedPositions.Contains(product.SortOrder)))
+                    {
+                        await transaction.RollbackAsync();
+                        return new(0);
+                    }
+                }
+
+                // Una asociación inactiva se reutiliza sin reactivarla.
+                if (!assignmentExists)
+                {
+                    await _context.SolutionCenterSections.AddAsync(new SolutionCenterSection
+                    {
+                        solution_center_id = solutionCenterId,
+                        section_id = sectionId,
+                        is_active = true
+                    });
+                }
 
                 
-                var solutionCenterProducts = products
+                var solutionCenterProducts = productsToAdd
                     .Select(product => new SolutionCenterProduct
                     {
                         solution_center_id = solutionCenterId,
@@ -117,8 +162,10 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 
                 await transaction.CommitAsync();
 
-                return new(sectionId, AuditDescription.Format(
-                    $"Se creó la sección {section.section_name} en el centro de solución {AuditDescription.Name(centerName, solutionCenterId)}."));
+                var description = isNewSection
+                    ? AuditDescription.Format($"Se creó la sección {section.section_name} en el centro de solución {AuditDescription.Name(centerName, solutionCenterId)}.")
+                    : AuditDescription.Format($"Se reutilizó la sección {section.section_name} en el centro de solución {AuditDescription.Name(centerName, solutionCenterId)} y se agregaron {solutionCenterProducts.Count} productos.");
+                return new(sectionId, description);
             }
             catch
             {

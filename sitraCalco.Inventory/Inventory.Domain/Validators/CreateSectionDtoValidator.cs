@@ -8,6 +8,10 @@ namespace Inventory.Domain.Validators
     {
         public CreateSectionDtoValidator()
         {
+            RuleFor(x => x.SolutionCenterTypeId)
+                .GreaterThan(0)
+                .WithMessage("El tipo de centro de solución es obligatorio y debe ser mayor a cero.");
+
             RuleFor(x => x.SectionName)
                 .NotEmpty()
                 .WithMessage(

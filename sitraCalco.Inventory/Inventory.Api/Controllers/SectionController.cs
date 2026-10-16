@@ -37,13 +37,22 @@ namespace Inventory.Api.Controllers
         /// Obtiene todas las secciones registradas.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] long? solutionCenterTypeId = null)
         {
             try
             {
-                var sections =
-                    (await _sectionApplication.GetAll())
-                    .ToList();
+                var result = await _sectionApplication.GetAll(solutionCenterTypeId);
+                if (result is null)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El tipo de centro de solución debe ser mayor a cero y existir en el catálogo.",
+                        Result = new { }
+                    });
+                }
+
+                var sections = result.ToList();
 
                 if (!sections.Any())
                 {
@@ -190,7 +199,7 @@ namespace Inventory.Api.Controllers
                         IsSuccess = false,
                         Message =
                             "No se pudo crear la sección. " +
-                            "Verifique que el nombre no esté registrado.",
+                            "Verifique que el nombre no esté registrado y que el tipo de centro de solución exista.",
                         Result = new { }
                     });
                 }

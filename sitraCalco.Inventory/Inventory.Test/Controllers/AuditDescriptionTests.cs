@@ -55,6 +55,8 @@ public class AuditDescriptionTests
     public async Task CenterOperations_DescribeTheAffectedEntities(string operation, string expected)
     {
         var repository = new SolutionCenterRepository(_context.Object);
+        if (operation == "create")
+            _section.section_id = 0; // Una sección nueva aún no tiene ID del catálogo.
         var description = operation switch
         {
             "create" => (await repository.CreateSectionConfiguration(1, _section, new(), "ejecutor")).Description,

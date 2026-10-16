@@ -136,7 +136,10 @@ namespace Inventory.Application.Services
                 if (request is null)
                     return new(0);
 
-                if (string.IsNullOrWhiteSpace(
+                if (request.IdSection <= 0)
+                    return new(0);
+
+                if (!request.IdSection.HasValue && string.IsNullOrWhiteSpace(
                     request.SectionName))
                     return new(0);
 
@@ -156,24 +159,35 @@ namespace Inventory.Application.Services
                 if (!solutionCenterExists)
                     return new(0);
 
-                var sectionName =
-                    request.SectionName.Trim();
+                Section section;
+                if (request.IdSection.HasValue)
+                {
+                    var existingSection = await _solutionCenterRepository
+                        .GetSectionById(request.IdSection.Value);
 
-                var sectionNameExists =
-                    await _solutionCenterRepository
-                        .SectionNameExists(
-                            sectionName);
+                    if (existingSection is null)
+                        return new(0);
 
-                if (sectionNameExists)
-                    return new(0);
+                    // El nombre y el estado del catálogo se conservan.
+                    section = existingSection;
+                }
+                else
+                {
+                    var sectionName = request.SectionName!.Trim();
+                    if (await _solutionCenterRepository.SectionNameExists(sectionName))
+                        return new(0);
 
-                if (sectionNameExists)
-                    return new(0);
+                    section = new Section
+                    {
+                        section_name = sectionName,
+                        is_active = true
+                    };
+                }
 
                 // ProductId y SortOrder deben ser válidos.
                 var invalidProducts =
                     request.Products.Any(product =>
-                        product.ProductId <= 0 ||
+                        product is null || product.ProductId <= 0 ||
                         product.SortOrder <= 0);
 
                 if (invalidProducts)
@@ -220,6 +234,17 @@ namespace Inventory.Application.Services
                     productIds.Distinct().Count())
                     return new(0);
 
+                if (request.IdSection.HasValue)
+                {
+                    // Validar también contra los productos de este centro/sección.
+                    // Un producto ya asignado se reutiliza, sin cambiar su posición.
+                    var existingProducts = await _solutionCenterRepository
+                        .GetSectionProducts(solutionCenterId, section.section_id);
+                    products = products.Concat(existingProducts)
+                        .DistinctBy(product => product.product_id)
+                        .ToList();
+                }
+
                 // Una referencia puede repetirse si tiene
                 // distinta unidad de medida.
                 //
@@ -244,12 +269,6 @@ namespace Inventory.Application.Services
 
                 if (duplicatedReferenceAndUnit)
                     return new(0);
-
-                var section = new Section
-                {
-                    section_name = sectionName,
-                    is_active = true
-                };
 
                 return await _solutionCenterRepository
                     .CreateSectionConfiguration(
@@ -388,6 +407,9 @@ namespace Inventory.Application.Services
                 if (section is null)
                     return new() { Status = SolutionCenterSectionStatus.SectionNotFound };
 
+                if (section.solution_center_type_id != center.SolutionCenterTypeId)
+                    return new() { Status = SolutionCenterSectionStatus.IncompatibleType };
+
                 if (!section.is_active)
                     return new() { Status = SolutionCenterSectionStatus.SectionInactive };
 
@@ -457,6 +479,9 @@ namespace Inventory.Application.Services
                     return new() { Status = SolutionCenterSectionStatus.AssignmentNotFound };
 
                 // Reactivar una asignación tampoco activa automáticamente el catálogo maestro.
+                if (isActive && section.solution_center_type_id != center.SolutionCenterTypeId)
+                    return new() { Status = SolutionCenterSectionStatus.IncompatibleType };
+
                 if (isActive && !section.is_active)
                     return new() { Status = SolutionCenterSectionStatus.SectionInactive };
 

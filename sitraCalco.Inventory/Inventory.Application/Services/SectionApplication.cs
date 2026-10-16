@@ -8,26 +8,36 @@ namespace Inventory.Application.Services
     public class SectionApplication : ISectionApplication
     {
         private readonly ISectionRepository _sectionRepository;
+        private readonly ISolutionCenterRepository _solutionCenterRepository;
 
         public SectionApplication(
-            ISectionRepository sectionRepository)
+            ISectionRepository sectionRepository,
+            ISolutionCenterRepository solutionCenterRepository)
         {
             _sectionRepository = sectionRepository;
+            _solutionCenterRepository = solutionCenterRepository;
         }
 
         /// <summary>
         /// Obtiene todas las secciones registradas.
         /// </summary>
-        public async Task<IEnumerable<SectionDto>> GetAll()
+        public async Task<IEnumerable<SectionDto>?> GetAll(long? solutionCenterTypeId = null)
         {
             try
             {
+                if (solutionCenterTypeId.HasValue &&
+                    (solutionCenterTypeId.Value <= 0 ||
+                     !await _solutionCenterRepository.SolutionCenterTypeExists(solutionCenterTypeId.Value)))
+                    return null;
+
                 var sections =
-                    await _sectionRepository.GetAll();
+                    await _sectionRepository.GetAll(solutionCenterTypeId);
 
                 return sections.Select(section =>
                     new SectionDto
                     {
+                        SolutionCenterTypeId = section.solution_center_type_id,
+
                         SectionId =
                             section.section_id,
 
@@ -64,6 +74,8 @@ namespace Inventory.Application.Services
 
                 return new SectionDto
                 {
+                    SolutionCenterTypeId = section.solution_center_type_id,
+
                     SectionId =
                         section.section_id,
 
@@ -96,6 +108,10 @@ namespace Inventory.Application.Services
                     request.SectionName))
                     return 0;
 
+                if (request.SolutionCenterTypeId <= 0 ||
+                    !await _solutionCenterRepository.SolutionCenterTypeExists(request.SolutionCenterTypeId))
+                    return 0;
+
                 var sectionName =
                     request.SectionName.Trim();
 
@@ -108,6 +124,8 @@ namespace Inventory.Application.Services
 
                 var section = new Section
                 {
+                    solution_center_type_id = request.SolutionCenterTypeId,
+
                     section_name =
                         sectionName,
 
@@ -168,6 +186,8 @@ namespace Inventory.Application.Services
                 {
                     section_id =
                         sectionId,
+
+                    solution_center_type_id = currentSection.solution_center_type_id,
 
                     section_name =
                         sectionName,

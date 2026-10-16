@@ -8,7 +8,8 @@ namespace Inventory.Domain.Dtos
         SectionInactive,
         AssignmentNotFound,
         AlreadyAssigned,
-        Success
+        Success,
+        IncompatibleType
     }
 
     // Resultado interno para validaciones y auditoría; no se expone como contrato HTTP.

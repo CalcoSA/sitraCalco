@@ -127,7 +127,7 @@ namespace Inventory.Test.Controllers
                 response.Result);
 
             _sectionApplicationMock.Verify(
-                x => x.GetAll(),
+                x => x.GetAll(null),
                 Times.Once);
         }
 
@@ -166,7 +166,7 @@ namespace Inventory.Test.Controllers
                 sections.Cast<object>());
 
             _sectionApplicationMock.Verify(
-                x => x.GetAll(),
+                x => x.GetAll(null),
                 Times.Once);
         }
 
@@ -175,7 +175,7 @@ namespace Inventory.Test.Controllers
         {
             // Arrange
             _sectionApplicationMock
-                .Setup(x => x.GetAll())
+                .Setup(x => x.GetAll(null))
                 .ThrowsAsync(
                     new Exception(
                         "Error de prueba"));
@@ -470,7 +470,7 @@ namespace Inventory.Test.Controllers
                 response.IsSuccess);
 
             Assert.Equal(
-                "No se pudo crear la sección. Verifique que el nombre no esté registrado.",
+                "No se pudo crear la sección. Verifique que el nombre no esté registrado y que el tipo de centro de solución exista.",
                 response.Message);
 
             _logApplicationMock.Verify(

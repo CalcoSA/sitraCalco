@@ -15,10 +15,13 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             _context = context;
         }
 
-        public async Task<IEnumerable<Section>> GetAll()
+        public async Task<IEnumerable<Section>> GetAll(long? solutionCenterTypeId = null)
         {
-            return await _context.Sections
-                .AsNoTracking()
+            var query = _context.Sections.AsNoTracking();
+            if (solutionCenterTypeId.HasValue)
+                query = query.Where(section => section.solution_center_type_id == solutionCenterTypeId.Value);
+
+            return await query
                 .OrderBy(section =>
                     section.section_name)
                 .ToListAsync();

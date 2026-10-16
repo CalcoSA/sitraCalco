@@ -104,14 +104,17 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             long solutionCenterId,
             long sectionId)
         {
-            return await _context.SolutionCenterSections
-                .AsNoTracking()
-                .AnyAsync(item =>
-                    item.solution_center_id ==
-                    solutionCenterId
-                    &&
-                    item.section_id ==
-                    sectionId && item.is_active);
+            return await (
+                from assignment in _context.SolutionCenterSections.AsNoTracking()
+                join center in _context.SolutionCenters.AsNoTracking()
+                    on assignment.solution_center_id equals center.solution_center_id
+                join section in _context.Sections.AsNoTracking()
+                    on assignment.section_id equals section.section_id
+                where assignment.solution_center_id == solutionCenterId &&
+                    assignment.section_id == sectionId && assignment.is_active &&
+                    section.solution_center_type_id == center.solution_center_type_id
+                select assignment.solution_center_section_id
+            ).AnyAsync();
         }
 
         /// <summary>
@@ -266,6 +269,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .Select(section =>
                     new SectionDto
                     {
+                        SolutionCenterTypeId = section.solution_center_type_id,
+
                         SectionId =
                             section.section_id,
 
@@ -346,6 +351,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     .Select(section =>
                         new SectionDto
                         {
+                            SolutionCenterTypeId = section.solution_center_type_id,
+
                             SectionId =
                                 section.section_id,
 
@@ -977,6 +984,10 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             if (assignment is null)
                 return new(false);
 
+            if (isActive && (!auditContext!.SectionTypeId.HasValue ||
+                auditContext.SectionTypeId != auditContext.SolutionCenterTypeId))
+                return new(false);
+
             assignment.is_active = isActive;
 
             await _context.SaveChangesAsync();
@@ -1184,7 +1195,9 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             InventoryConfigurationAssignment Assignment,
             string? ConfigurationName,
             string? SolutionCenterName,
-            string? SectionName);
+            string? SectionName,
+            long? SolutionCenterTypeId,
+            long? SectionTypeId);
 
         private Task<AssignmentAuditContext?> GetAssignmentAuditContext(
             long inventoryConfigurationId, long solutionCenterId, long sectionId)
@@ -1203,7 +1216,9 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 select new AssignmentAuditContext(assignment,
                     configuration != null ? configuration.inventory_configuration_name : null,
                     center != null ? center.solution_center_name : null,
-                    section != null ? section.section_name : null))
+                    section != null ? section.section_name : null,
+                    center != null ? (long?)center.solution_center_type_id : null,
+                    section != null ? (long?)section.solution_center_type_id : null))
                 .FirstOrDefaultAsync();
         }
     }

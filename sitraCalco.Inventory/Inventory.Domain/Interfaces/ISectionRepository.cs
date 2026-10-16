@@ -4,7 +4,7 @@ namespace Inventory.Domain.Interfaces
 {
     public interface ISectionRepository
     {
-        Task<IEnumerable<Section>> GetAll();
+        Task<IEnumerable<Section>> GetAll(long? solutionCenterTypeId = null);
 
         Task<Section?> GetById(long sectionId);
 
