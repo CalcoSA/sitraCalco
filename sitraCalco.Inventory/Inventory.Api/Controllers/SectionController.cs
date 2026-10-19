@@ -242,7 +242,7 @@ namespace Inventory.Api.Controllers
         }
 
         /// <summary>
-        /// Actualiza el nombre y el estado de una sección.
+        /// Actualiza el nombre, estado y el tipo opcional de una sección sin dependencias.
         /// </summary>
         [HttpPut("{sectionId:long}")]
         public async Task<IActionResult> Update(
@@ -347,6 +347,15 @@ namespace Inventory.Api.Controllers
                             : "estado a inactivo");
                 }
 
+                if (request.SolutionCenterTypeId.HasValue &&
+                    request.SolutionCenterTypeId.Value != currentSection.SolutionCenterTypeId)
+                {
+                    // Solo recargar cuando cambia el tipo para auditar los nombres reales del catálogo.
+                    var updatedSection = await _sectionApplication.GetById(sectionId);
+                    changes.Add($"tipo de {currentSection.SolutionCenterTypeName} " +
+                        $"a {updatedSection?.SolutionCenterTypeName ?? request.SolutionCenterTypeId.Value.ToString()}");
+                }
+
                 var description =
                     changes.Any()
                         ? string.Join(" y ", changes)
@@ -377,6 +386,15 @@ namespace Inventory.Api.Controllers
                         IsActive =
                             request.IsActive
                     }
+                });
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = ex.Message,
+                    Result = new { }
                 });
             }
             catch (Exception ex)

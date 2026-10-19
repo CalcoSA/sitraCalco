@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Data.Common;
 using Inventory.Api.Controllers;
 using Inventory.Application.Interfaces;
 using Inventory.Application.Services;
@@ -12,6 +13,7 @@ using Inventory.Test.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -23,6 +25,7 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     private readonly Mock<ILogApplication> _logs = new();
     private readonly List<CreateLogDto> _audit = new();
+    private readonly ReadCounter _queries = new();
     private TestContext _context = null!;
     private SolutionCenterController _controller = null!;
     private SectionController _sections = null!;
@@ -31,7 +34,7 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
     {
         await _connection.OpenAsync();
         _context = new TestContext(new DbContextOptionsBuilder<SitraCalcoContext>()
-            .UseSqlite(_connection).Options);
+            .UseSqlite(_connection).AddInterceptors(_queries).Options);
         await _context.Database.EnsureCreatedAsync();
         _context.SolutionCenterTypes.AddRange(
             new() { solution_center_type_id = 1, solution_center_type_name = "Bodega" },
@@ -316,14 +319,19 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
     [InlineData(2L, 1)]
     public async Task CatalogGet_FiltersByTypeAndKeepsNameOrderAndInactiveSections(long? typeId, int count)
     {
+        foreach (var type in await _context.SolutionCenterTypes.ToListAsync())
+            type.solution_center_type_name = $"Tipo real {type.solution_center_type_id}";
         _context.Sections.AddRange(
             new() { section_name = "A PDV", solution_center_type_id = 2, is_active = false },
             new() { section_name = "Z Bodega", solution_center_type_id = 1, is_active = true });
         await _context.SaveChangesAsync();
 
+        var readsBefore = _queries.Reads;
         var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(await _sections.GetAll(typeId)).Value);
         var sections = Assert.IsAssignableFrom<IEnumerable<SectionDto>>(response.Result).ToList();
 
+        Assert.InRange(_queries.Reads - readsBefore, 1, typeId.HasValue ? 2 : 1);
+        Assert.All(sections, x => Assert.Equal($"Tipo real {x.SolutionCenterTypeId}", x.SolutionCenterTypeName));
         Assert.Equal(count, sections.Count);
         Assert.Equal(sections.OrderBy(x => x.SectionName).Select(x => x.SectionId), sections.Select(x => x.SectionId));
         if (typeId.HasValue)
@@ -342,31 +350,150 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
         await AssertNoAssignments();
     }
 
-    [Fact]
-    public async Task CatalogDetail_IncludesTypeAndPreservesNotFound()
+    [Theory]
+    [InlineData(1L)]
+    [InlineData(2L)]
+    public async Task CatalogDetail_IncludesTypeNameAndPreservesNotFound(long typeId)
     {
+        await SetSectionType(typeId);
+        (await _context.SolutionCenterTypes.SingleAsync(x => x.solution_center_type_id == typeId))
+            .solution_center_type_name = "Nombre actualizado del catálogo";
+        await _context.SaveChangesAsync();
+        var readsBefore = _queries.Reads;
         var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(await _sections.GetById(2)).Value);
         var section = Assert.IsType<SectionDto>(response.Result);
-        Assert.Equal((2L, "Pasillo 3", 1L, true), (section.SectionId, section.SectionName, section.SolutionCenterTypeId, section.IsActive));
+        Assert.Equal(1, _queries.Reads - readsBefore);
+        Assert.Equal((2L, "Pasillo 3", typeId, true), (section.SectionId, section.SectionName, section.SolutionCenterTypeId, section.IsActive));
+        var json = JsonSerializer.SerializeToElement(section, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal("Nombre actualizado del catálogo", json.GetProperty("solutionCenterTypeName").GetString());
         Assert.IsType<NotFoundObjectResult>(await _sections.GetById(999));
     }
 
     [Theory]
-    [InlineData("{\"sectionName\":\"Renombrada\",\"isActive\":false}")]
-    [InlineData("{\"sectionName\":\"Renombrada\",\"isActive\":false,\"solutionCenterTypeId\":2}")]
-    public async Task CatalogUpdate_OnlyChangesNameAndStatusEvenWithAnUnknownTypeField(string json)
+    [InlineData("{\"sectionName\":\"Renombrada\",\"isActive\":false}", true)]
+    [InlineData("{\"sectionName\":\"Renombrada\",\"isActive\":false,\"solutionCenterTypeId\":null}", false)]
+    [InlineData("{\"sectionName\":\"Renombrada\",\"isActive\":false,\"solutionCenterTypeId\":1}", true)]
+    [InlineData("{\"sectionName\":\"Renombrada\",\"isActive\":false,\"solutionCenterTypeId\":1}", false)]
+    public async Task CatalogUpdate_OmittedOrUnchangedTypeAllowsExistingRelationships(string json, bool active)
     {
-        await SeedAssignment(1, 2, true, (1, 4));
-        // El contrato PUT no admite tipos: los campos JSON desconocidos no se enlazan al DTO.
+        await SeedAssignment(1, 2, active, (1, 4));
         var request = JsonSerializer.Deserialize<UpdateSectionDto>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.IsType<OkObjectResult>(await _sections.Update(2, request));
 
         var section = await _context.Sections.AsNoTracking().SingleAsync();
         Assert.Equal(("Renombrada", false, 1L), (section.section_name, section.is_active, section.solution_center_type_id));
-        Assert.True((await _context.SolutionCenterSections.AsNoTracking().SingleAsync()).is_active);
+        Assert.Equal(active, (await _context.SolutionCenterSections.AsNoTracking().SingleAsync()).is_active);
         var product = await _context.SolutionCenterProducts.AsNoTracking().SingleAsync();
         Assert.Equal((1L, 4, "original"), (product.product_id, product.sort_order, product.created_by));
         Assert.Contains("Se actualizó la sección Renombrada", Assert.Single(_audit).Description);
+    }
+
+    [Theory]
+    [InlineData(1L, 2L, "Bodega", "Punto de Venta")]
+    [InlineData(2L, 1L, "Punto de Venta", "Bodega")]
+    public async Task CatalogUpdate_ChangesTypeWithoutDependenciesAndAuditsRealNames(
+        long oldType, long newType, string oldName, string newName)
+    {
+        await SetSectionType(oldType);
+        var request = new UpdateSectionDto { SectionName = " Renombrada ", IsActive = false, SolutionCenterTypeId = newType };
+
+        var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(await _sections.Update(2, request)).Value);
+
+        Assert.True(response.IsSuccess);
+        Assert.Equal("Sección actualizada correctamente.", response.Message);
+        var section = await _context.Sections.AsNoTracking().SingleAsync();
+        Assert.Equal(("Renombrada", false, newType), (section.section_name, section.is_active, section.solution_center_type_id));
+        Assert.Empty(await _context.SolutionCenterSections.ToListAsync());
+        Assert.Empty(await _context.SolutionCenterProducts.ToListAsync());
+        Assert.Empty(await _context.InventoryConfigurationAssignments.ToListAsync());
+        var log = Assert.Single(_audit);
+        Assert.Contains($"tipo de {oldName} a {newName}", log.Description);
+        Assert.Equal("ejecutor.jwt", log.UserName);
+
+        // La nueva clasificación sigue respetándose en los endpoints existentes de SolutionCenter.
+        var incompatibleCenter = newType == 1 ? 3L : 1L;
+        Failure(await _controller.CreateSectionConfiguration(incompatibleCenter, Request(2)));
+        Assert.Empty(await _context.SolutionCenterProducts.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData(0L)]
+    [InlineData(-1L)]
+    [InlineData(999L)]
+    public async Task CatalogUpdate_InvalidTypeDoesNotChangeAnyProperty(long typeId)
+    {
+        var result = Assert.IsType<BadRequestObjectResult>(await _sections.Update(2,
+            new UpdateSectionDto { SectionName = "No guardar", IsActive = false, SolutionCenterTypeId = typeId }));
+        var response = Assert.IsType<ResponseApi>(result.Value);
+
+        Assert.False(response.IsSuccess);
+        if (typeId > 0)
+            Assert.Equal("El tipo de centro de solución no existe.", response.Message);
+        else
+            Assert.Contains("El tipo de centro de solución debe ser mayor a cero.",
+                Assert.IsAssignableFrom<IEnumerable<string>>(response.Result));
+        await AssertOriginalSection();
+    }
+
+    [Theory]
+    [InlineData("assignment", true)]
+    [InlineData("assignment", false)]
+    [InlineData("product", false)]
+    [InlineData("configuration", true)]
+    [InlineData("configuration", false)]
+    public async Task CatalogUpdate_TypeChangeRejectsEveryDependencyWithoutChangingData(string relation, bool active)
+    {
+        if (relation == "assignment")
+            await SeedAssignment(1, 2, active);
+        if (relation == "product")
+            _context.SolutionCenterProducts.Add(new() { solution_center_id = 1, section_id = 2,
+                product_id = 1, sort_order = 4, created_by = "original", created_at = DateTime.UtcNow });
+        if (relation == "configuration")
+        {
+            _context.InventoryConfigurations.Add(new() { inventory_configuration_id = 1, inventory_configuration_name = "Semanal" });
+            _context.InventoryConfigurationAssignments.Add(new() { inventory_configuration_id = 1, solution_center_id = 1, section_id = 2, is_active = active });
+        }
+        await _context.SaveChangesAsync();
+        _context.ChangeTracker.Clear();
+
+        var response = Failure(await _sections.Update(2,
+            new UpdateSectionDto { SectionName = "No guardar", IsActive = false, SolutionCenterTypeId = 2 }));
+
+        Assert.Equal("No se puede cambiar el tipo de la sección porque tiene centros de solución, productos o configuraciones de inventario asociados.", response.Message);
+        await AssertOriginalSection();
+        Assert.Equal(relation == "assignment" ? 1 : 0, await _context.SolutionCenterSections.CountAsync());
+        Assert.Equal(relation == "product" ? 1 : 0, await _context.SolutionCenterProducts.CountAsync());
+        Assert.Equal(relation == "configuration" ? 1 : 0, await _context.InventoryConfigurationAssignments.CountAsync());
+        if (relation == "assignment")
+            Assert.Equal(active, (await _context.SolutionCenterSections.AsNoTracking().SingleAsync()).is_active);
+        if (relation == "product")
+        {
+            var product = await _context.SolutionCenterProducts.AsNoTracking().SingleAsync();
+            Assert.Equal((1L, 4, "original"), (product.product_id, product.sort_order, product.created_by));
+        }
+        if (relation == "configuration")
+            Assert.Equal(active, (await _context.InventoryConfigurationAssignments.AsNoTracking().SingleAsync()).is_active);
+    }
+
+    [Fact]
+    public async Task CatalogUpdate_TypeChangeStillRejectsDuplicateNames()
+    {
+        _context.Sections.Add(new() { section_name = "Nombre ocupado", solution_center_type_id = 2, is_active = true });
+        await _context.SaveChangesAsync();
+
+        var response = Failure(await _sections.Update(2,
+            new UpdateSectionDto { SectionName = " nombre ocupado ", IsActive = false, SolutionCenterTypeId = 2 }));
+
+        Assert.Equal("No se pudo actualizar la sección. Verifique que el nombre no esté registrado.", response.Message);
+        await AssertOriginalSection();
+        Assert.Equal(2, await _context.Sections.CountAsync());
+    }
+
+    private async Task AssertOriginalSection()
+    {
+        var section = await _context.Sections.AsNoTracking().SingleAsync(x => x.section_id == 2);
+        Assert.Equal(("Pasillo 3", true, 1L), (section.section_name, section.is_active, section.solution_center_type_id));
+        Assert.Empty(_audit);
     }
 
     [Theory]
@@ -521,6 +648,7 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
     [InlineData(3L, false)]
     public async Task InventoryAssignmentStatus_OnlyReactivatesCompatibleTypes(long centerId, bool compatible)
     {
+        await SeedAssignment(centerId, 2, true);
         _context.InventoryConfigurations.Add(new() { inventory_configuration_id = 1, inventory_configuration_name = "Semanal" });
         _context.InventoryConfigurationAssignments.Add(new() { inventory_configuration_id = 1, solution_center_id = centerId, section_id = 2, is_active = false });
         await _context.SaveChangesAsync();
@@ -580,6 +708,19 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
         Assert.False(response.IsSuccess);
         Assert.Empty(JsonSerializer.SerializeToElement(response.Result).EnumerateObject());
         return response;
+    }
+
+    private sealed class ReadCounter : DbCommandInterceptor
+    {
+        public int Reads { get; private set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Reads++;
+            return ValueTask.FromResult(result);
+        }
     }
 
     private sealed class TestContext(DbContextOptions<SitraCalcoContext> options) : SitraCalcoContext(options)

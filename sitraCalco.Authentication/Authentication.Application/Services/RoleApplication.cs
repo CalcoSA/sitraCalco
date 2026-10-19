@@ -3,6 +3,7 @@ using Authentication.Domain.Dtos;
 using Authentication.Domain.Interfaces;
 using Authentication.Domain.Models;
 using AutoMapper;
+using Authentication.Domain.Exceptions;
 
 namespace Authentication.Application.Services
 {
@@ -170,6 +171,8 @@ namespace Authentication.Application.Services
                     return new AuditResultDto();
 
                 var roleName = role.NameRole;
+                if (role.RoleCode == Role.PointOfSaleCode)
+                    throw new BusinessRuleException("No se puede eliminar el rol funcional PDV.");
                 await _roleRepository.DeleteRole(idRole);
 
                 return new AuditResultDto
@@ -177,6 +180,10 @@ namespace Authentication.Application.Services
                     IsSuccess = true,
                     Description = $"Se eliminó el rol {roleName} y sus opciones de menú asociadas."
                 };
+            }
+            catch (BusinessRuleException)
+            {
+                throw;
             }
             catch (Exception ex)
             {

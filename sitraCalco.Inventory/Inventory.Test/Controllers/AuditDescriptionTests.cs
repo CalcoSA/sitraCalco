@@ -32,7 +32,8 @@ public class AuditDescriptionTests
         _context.SetupGet(x => x.Sections).Returns(Set(_section).Object);
         _context.SetupGet(x => x.SolutionCenters).Returns(Set(new SolutionCenter { solution_center_id = 1, solution_center_name = "Poblado" }).Object);
         _context.SetupGet(x => x.InventoryConfigurations).Returns(Set(_configuration).Object);
-        _context.SetupGet(x => x.SolutionCenterSections).Returns(Set<SolutionCenterSection>().Object);
+        _context.SetupGet(x => x.SolutionCenterSections).Returns(Set(new SolutionCenterSection
+            { solution_center_id = 1, section_id = 2, is_active = true }).Object);
         _context.SetupGet(x => x.SolutionCenterProducts).Returns(Set(_association,
             new SolutionCenterProduct { solution_center_product_id = 51, product_id = 99, solution_center_id = 1, section_id = 2, sort_order = 2 }).Object);
         _context.SetupGet(x => x.InventoryConfigurationAssignments).Returns(Set(
@@ -43,6 +44,8 @@ public class AuditDescriptionTests
         _context.Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
         var database = new Mock<DatabaseFacade>(_context.Object);
         database.Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>())).ReturnsAsync(_transaction.Object);
+        database.SetupGet(x => x.CurrentTransaction).Returns(_transaction.Object);
+        database.SetupGet(x => x.ProviderName).Returns("Microsoft.EntityFrameworkCore.Sqlite");
         _context.SetupGet(x => x.Database).Returns(database.Object);
     }
 
@@ -85,6 +88,8 @@ public class AuditDescriptionTests
     public async Task ConfigurationOperations_DescribeStoredNamesAndDays(string operation, string expected)
     {
         var repository = new InventoryConfigurationRepository(_context.Object);
+        if (operation == "assign")
+            _context.SetupGet(x => x.InventoryConfigurationAssignments).Returns(Set<InventoryConfigurationAssignment>().Object);
         var description = operation switch
         {
             "assign" => (await repository.CreateAssignments(new[] { new InventoryConfigurationAssignment { inventory_configuration_id = 3, solution_center_id = 1, section_id = 2 } })).Description,

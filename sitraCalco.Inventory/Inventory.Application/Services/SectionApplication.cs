@@ -2,6 +2,7 @@
 using Inventory.Domain.Dtos;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
+using FluentValidation;
 
 namespace Inventory.Application.Services
 {
@@ -37,6 +38,7 @@ namespace Inventory.Application.Services
                     new SectionDto
                     {
                         SolutionCenterTypeId = section.solution_center_type_id,
+                        SolutionCenterTypeName = section.SolutionCenterType.solution_center_type_name,
 
                         SectionId =
                             section.section_id,
@@ -75,6 +77,7 @@ namespace Inventory.Application.Services
                 return new SectionDto
                 {
                     SolutionCenterTypeId = section.solution_center_type_id,
+                    SolutionCenterTypeName = section.SolutionCenterType.solution_center_type_name,
 
                     SectionId =
                         section.section_id,
@@ -143,7 +146,7 @@ namespace Inventory.Application.Services
         }
 
         /// <summary>
-        /// Actualiza el nombre y el estado de una sección.
+        /// Actualiza nombre, estado y, opcionalmente, el tipo de una sección sin dependencias.
         /// </summary>
         public async Task<bool> Update(
             long sectionId,
@@ -167,6 +170,16 @@ namespace Inventory.Application.Services
 
                 if (currentSection is null)
                     return false;
+
+                if (request.SolutionCenterTypeId.HasValue)
+                {
+                    if (request.SolutionCenterTypeId.Value <= 0)
+                        throw new ValidationException("El tipo de centro de solución debe ser mayor a cero.");
+
+                    if (request.SolutionCenterTypeId.Value != currentSection.solution_center_type_id &&
+                        !await _solutionCenterRepository.SolutionCenterTypeExists(request.SolutionCenterTypeId.Value))
+                        throw new ValidationException("El tipo de centro de solución no existe.");
+                }
 
                 var sectionName =
                     request.SectionName.Trim();
@@ -197,7 +210,7 @@ namespace Inventory.Application.Services
                 };
 
                 return await _sectionRepository
-                    .UpdateSection(section);
+                    .UpdateSection(section, request.SolutionCenterTypeId);
             }
             catch
             {

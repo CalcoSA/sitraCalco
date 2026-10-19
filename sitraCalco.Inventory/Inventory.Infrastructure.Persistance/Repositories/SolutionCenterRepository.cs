@@ -71,7 +71,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             try
             {
-                
+                // Bloquear antes de cualquier lectura consistente de esta transacción.
+                var existingAssignment = section.section_id > 0
+                    ? await _context.LockSectionAssignment(solutionCenterId, section.section_id)
+                    : null;
+
                 var center = await _context.SolutionCenters
                     .Where(center => center.solution_center_id == solutionCenterId)
                     .Select(center => new { center.solution_center_name, center.solution_center_type_id })
@@ -105,7 +109,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
                 if (!isNewSection)
                 {
-                    assignmentExists = await GetSectionAssignment(solutionCenterId, sectionId) is not null;
+                    assignmentExists = existingAssignment is not null;
 
                     var existingProducts = await _context.SolutionCenterProducts
                         .AsNoTracking()
@@ -451,17 +455,23 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
         public async Task<bool> CreateSectionAssignment(SolutionCenterSection assignment)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            if (await _context.LockSectionAssignment(assignment.solution_center_id, assignment.section_id) is not null)
+                return false;
+
             await _context.SolutionCenterSections.AddAsync(assignment);
 
             try
             {
                 await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
                 return true;
             }
             catch (DbUpdateException ex) when
                 (ex.InnerException is MySqlException { Number: 1062 })
             {
                 // El UNIQUE centro/sección también protege ante asignaciones simultáneas.
+                await transaction.RollbackAsync();
                 _context.Entry(assignment).State = EntityState.Detached;
                 return false;
             }
@@ -472,12 +482,60 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             long sectionId,
             bool isActive)
         {
-            return await _context.SolutionCenterSections
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            if (await _context.LockSectionAssignment(solutionCenterId, sectionId) is null)
+                return false;
+
+            var updated = await _context.SolutionCenterSections
                 .Where(x =>
                     x.solution_center_id == solutionCenterId &&
                     x.section_id == sectionId)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(x => x.is_active, isActive)) > 0;
+            await transaction.CommitAsync();
+            return updated;
+        }
+
+        public async Task<AuditResult<SolutionCenterSectionResultDto>> DeleteSectionAssignment(
+            long solutionCenterId, long sectionId)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                if (solutionCenterId <= 0 || sectionId <= 0)
+                    return new(new() { Status = SolutionCenterSectionStatus.InvalidRequest });
+
+                var assignment = await _context.LockSectionAssignment(solutionCenterId, sectionId);
+                if (assignment is null)
+                    return new(new() { Status = SolutionCenterSectionStatus.AssignmentNotFound });
+
+                // Las configuraciones inactivas también impiden el retiro.
+                if (await _context.InventoryConfigurationAssignments.AnyAsync(item =>
+                    item.solution_center_id == solutionCenterId && item.section_id == sectionId))
+                    return new(new() { Status = SolutionCenterSectionStatus.HasInventoryConfigurations });
+
+                var location = await (
+                    from center in _context.SolutionCenters.AsNoTracking()
+                    from section in _context.Sections.AsNoTracking()
+                    where center.solution_center_id == solutionCenterId && section.section_id == sectionId
+                    select new { center.solution_center_name, section.section_name }).SingleAsync();
+
+                var deletedProducts = await _context.SolutionCenterProducts
+                    .Where(item => item.solution_center_id == solutionCenterId && item.section_id == sectionId)
+                    .ExecuteDeleteAsync();
+                await _context.SolutionCenterSections
+                    .Where(item => item.solution_center_id == solutionCenterId && item.section_id == sectionId)
+                    .ExecuteDeleteAsync();
+
+                await transaction.CommitAsync();
+                return new(new() { Status = SolutionCenterSectionStatus.Success, DeletedProducts = deletedProducts },
+                    AuditDescription.Format($"Se retiró la sección {location.section_name} del centro {location.solution_center_name} y se eliminaron {deletedProducts} asignaciones de productos."));
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
         }
 
         public async Task<IEnumerable<Product>> GetSectionProducts(
@@ -515,7 +573,12 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             try
             {
-                
+                if (await _context.LockSectionAssignment(solutionCenterId, sectionId) is not { is_active: true })
+                {
+                    await transaction.RollbackAsync();
+                    return new(0);
+                }
+
                 var location = await (
                     from center in _context.SolutionCenters
                     from section in _context.Sections
@@ -587,6 +650,12 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             try
             {
+                if (await _context.LockSectionAssignment(solutionCenterId, sectionId) is not { is_active: true })
+                {
+                    await transaction.RollbackAsync();
+                    return new(false);
+                }
+
                 // Producto que queremos mover.
                 var auditContext = await (
                     from item in _context.SolutionCenterProducts
@@ -677,6 +746,12 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             try
             {
+                if (await _context.LockSectionAssignment(solutionCenterId, sectionId) is not { is_active: true })
+                {
+                    await transaction.RollbackAsync();
+                    return new(false);
+                }
+
                 // Buscar exactamente la asociación que se quiere eliminar.
                 var auditContext = await (
                     from item in _context.SolutionCenterProducts

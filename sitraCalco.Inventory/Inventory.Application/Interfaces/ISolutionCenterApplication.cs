@@ -23,6 +23,8 @@ namespace Inventory.Application.Interfaces
 
         Task<SolutionCenterSectionResultDto> UpdateSectionAssignmentStatus(long solutionCenterId,long sectionId,bool isActive);
 
+        Task<AuditResult<SolutionCenterSectionResultDto>> DeleteSectionAssignment(long solutionCenterId,long sectionId);
+
         Task<AuditResult<long>> AddProductToSection(long solutionCenterId,long sectionId,AddSectionProductDto request,string userName);
 
         Task<AuditResult<bool>> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);

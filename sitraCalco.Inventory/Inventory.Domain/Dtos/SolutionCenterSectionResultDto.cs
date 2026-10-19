@@ -9,7 +9,8 @@ namespace Inventory.Domain.Dtos
         AssignmentNotFound,
         AlreadyAssigned,
         Success,
-        IncompatibleType
+        IncompatibleType,
+        HasInventoryConfigurations
     }
 
     // Resultado interno para validaciones y auditoría; no se expone como contrato HTTP.
@@ -22,5 +23,7 @@ namespace Inventory.Domain.Dtos
         public string SectionName { get; set; } = string.Empty;
 
         public bool WasReactivated { get; set; }
+
+        public int DeletedProducts { get; set; }
     }
 }

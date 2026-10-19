@@ -1,5 +1,6 @@
 ﻿using Authentication.Application.Interfaces;
 using Authentication.Domain.Dtos;
+using Authentication.Domain.Exceptions;
 using Authentication.Api.Extensions;
 using Authentication.Domain.Responses;
 using FluentValidation;
@@ -190,6 +191,10 @@ namespace Authentication.Api.Controllers
                     Result = new { }
                 });
             }
+            catch (BusinessRuleException ex)
+            {
+                return BadRequest(new ResponseApi { IsSuccess = false, Message = ex.Message, Result = new { } });
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error al crear un usuario.");
@@ -257,6 +262,10 @@ namespace Authentication.Api.Controllers
                     Message = "Usuario actualizado correctamente.",
                     Result = new { }
                 });
+            }
+            catch (BusinessRuleException ex)
+            {
+                return BadRequest(new ResponseApi { IsSuccess = false, Message = ex.Message, Result = new { } });
             }
             catch (Exception ex)
             {

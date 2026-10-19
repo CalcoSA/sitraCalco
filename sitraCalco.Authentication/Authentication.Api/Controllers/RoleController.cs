@@ -1,5 +1,6 @@
 ﻿using Authentication.Application.Interfaces;
 using Authentication.Domain.Dtos;
+using Authentication.Domain.Exceptions;
 using Authentication.Api.Extensions;
 using Authentication.Domain.Responses;
 using FluentValidation;
@@ -307,6 +308,10 @@ namespace Authentication.Api.Controllers
                     Message = "Rol eliminado correctamente.",
                     Result = new { }
                 });
+            }
+            catch (BusinessRuleException ex)
+            {
+                return BadRequest(new ResponseApi { IsSuccess = false, Message = ex.Message, Result = new { } });
             }
             catch (Exception ex)
             {

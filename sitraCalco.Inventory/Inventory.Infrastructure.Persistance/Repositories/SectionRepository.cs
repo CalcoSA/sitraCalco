@@ -2,6 +2,8 @@
 using Inventory.Domain.Models;
 using Inventory.Infrastructure.Persistance.Data;
 using Microsoft.EntityFrameworkCore;
+using FluentValidation;
+using System.Data;
 
 namespace Inventory.Infrastructure.Persistance.Repositories
 {
@@ -22,6 +24,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 query = query.Where(section => section.solution_center_type_id == solutionCenterTypeId.Value);
 
             return await query
+                .Include(section => section.SolutionCenterType)
                 .OrderBy(section =>
                     section.section_name)
                 .ToListAsync();
@@ -32,6 +35,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         {
             return await _context.Sections
                 .AsNoTracking()
+                .Include(section => section.SolutionCenterType)
                 .FirstOrDefaultAsync(section =>
                     section.section_id == sectionId);
         }
@@ -74,8 +78,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         }
 
         public async Task<bool> UpdateSection(
-            Section section)
+            Section section, long? solutionCenterTypeId = null)
         {
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync(IsolationLevel.Serializable);
+
             var currentSection =
                 await _context.Sections
                     .FirstOrDefaultAsync(current =>
@@ -85,6 +92,18 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             if (currentSection is null)
                 return false;
 
+            // Comprobar las dependencias antes de modificar cualquier propiedad.
+            // Omitir el tipo o enviar el actual permite mantener las relaciones existentes.
+            if (solutionCenterTypeId.HasValue &&
+                solutionCenterTypeId.Value != currentSection.solution_center_type_id)
+            {
+                if (await HasAssociations(section.section_id))
+                    throw new ValidationException(
+                        "No se puede cambiar el tipo de la sección porque tiene centros de solución, productos o configuraciones de inventario asociados.");
+
+                currentSection.solution_center_type_id = solutionCenterTypeId.Value;
+            }
+
             currentSection.section_name =
                 section.section_name;
 
@@ -92,6 +111,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 section.is_active;
 
             await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
 
             return true;
         }

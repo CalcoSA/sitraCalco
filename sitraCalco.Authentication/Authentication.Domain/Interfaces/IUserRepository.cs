@@ -7,10 +7,11 @@ namespace Authentication.Domain.Interfaces
     {
         Task<PagedDto<User>> GetAllUsers(int page, int take, string? search);
         Task<User?> GetUserById(int idUser);
+        Task<User?> GetAdministrativeUserById(int idUser);
         Task<User?> GetUserByLogin(string userLogin);
         Task<bool> ExistsByUserLogin(string userLogin, int? excludeIdUser = null);
-        Task CreateUser(User user, int idRole);
-        Task UpdateUser(int idUser, bool statusUser, int idRole);
+        Task<UserAssignmentResultDto> CreateUser(User user, int idRole, int? solutionCenterId);
+        Task<UserAssignmentResultDto> UpdateUser(int idUser, bool statusUser, int idRole, int? solutionCenterId);
         Task DeleteUser(int idUser);
     }
 }

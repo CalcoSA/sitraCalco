@@ -153,6 +153,25 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             if (assignmentsToCreate.Count == 0)
                 return new(0);
 
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            // Orden común para lotes que abarcan varias parejas. Tomar todos los
+            // bloqueos antes de las lecturas evita snapshots anteriores a una espera.
+            var pairs = assignmentsToCreate
+                .Select(item => (item.solution_center_id, item.section_id)).Distinct()
+                .OrderBy(pair => pair.solution_center_id).ThenBy(pair => pair.section_id);
+            foreach (var pair in pairs)
+            {
+                if (await _context.LockSectionAssignment(pair.solution_center_id, pair.section_id) is not { is_active: true })
+                    return new(0);
+            }
+
+            foreach (var assignment in assignmentsToCreate)
+            {
+                if (!await SectionBelongsToSolutionCenter(assignment.solution_center_id, assignment.section_id) ||
+                    await AssignmentExists(assignment.inventory_configuration_id, assignment.solution_center_id, assignment.section_id))
+                    return new(0);
+            }
+
             var configurationName = await _context.InventoryConfigurations
                 .Where(configuration => configuration.inventory_configuration_id == assignmentsToCreate[0].inventory_configuration_id)
                 .Select(configuration => configuration.inventory_configuration_name)
@@ -163,6 +182,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .AddRangeAsync(assignmentsToCreate);
 
             await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
 
             return new(assignmentsToCreate.Count, AuditDescription.Format(
                 $"Se agregaron {assignmentsToCreate.Count} asignaciones a la configuración de inventario {AuditDescription.Name(configurationName, assignmentsToCreate[0].inventory_configuration_id)}."));
@@ -977,6 +998,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             long sectionId,
             bool isActive)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var sectionAssignment = await _context.LockSectionAssignment(solutionCenterId, sectionId);
+            if (isActive && sectionAssignment is null)
+                return new(false);
+
             var auditContext = await GetAssignmentAuditContext(
                 inventoryConfigurationId, solutionCenterId, sectionId);
             var assignment = auditContext?.Assignment;
@@ -991,6 +1017,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             assignment.is_active = isActive;
 
             await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
 
             return new(true, AuditDescription.Format(
                 $"Se {(assignment.is_active ? "activó" : "inactivó")} la sección {AuditDescription.Name(auditContext!.SectionName, sectionId)} para el centro de solución {AuditDescription.Name(auditContext.SolutionCenterName, solutionCenterId)} en la configuración de inventario {AuditDescription.Name(auditContext.ConfigurationName, inventoryConfigurationId)}."));

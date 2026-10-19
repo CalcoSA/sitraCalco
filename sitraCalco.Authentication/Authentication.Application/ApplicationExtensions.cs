@@ -14,6 +14,7 @@ namespace Authentication.Application
             services.AddScoped<IMenuOptionApplication, MenuOptionApplication>();
             services.AddScoped<IRoleApplication, RoleApplication>();
             services.AddScoped<IUserApplication, UserApplication>();
+            services.AddScoped<ISolutionCenterApplication, SolutionCenterApplication>();
             services.AddScoped<IJwtTokenApplication, JwtTokenApplication>();
             services.AddScoped<ISSOSignatureApplication, SSOSignatureApplication>();
             services.AddScoped<IAuthApplication, AuthApplication>();

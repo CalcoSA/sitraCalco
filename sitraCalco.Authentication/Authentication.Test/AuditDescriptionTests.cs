@@ -40,9 +40,10 @@ public class AuditDescriptionTests
         {
             Users.Setup(x => x.GetById(42)).ReturnsAsync(AffectedUser);
             Users.Setup(x => x.ExistsByUserLogin("agomez", null)).ReturnsAsync(false);
-            Users.Setup(x => x.CreateUser(It.Is<User>(u => u.UserName == "Ana María Gómez" && u.UserLogin == "agomez"), 7))
-                .Returns(() => Persistence);
-            Users.Setup(x => x.UpdateUser(42, It.IsAny<bool>(), 7)).Returns(() => Persistence);
+            Users.Setup(x => x.CreateUser(It.Is<User>(u => u.UserName == "Ana María Gómez" && u.UserLogin == "agomez"), 7, null))
+                .Returns(async () => { await Persistence; return new UserAssignmentResultDto(); });
+            Users.Setup(x => x.UpdateUser(42, It.IsAny<bool>(), 7, null))
+                .Returns(async () => { await Persistence; return new UserAssignmentResultDto(); });
             Users.Setup(x => x.DeleteUser(42))
                 .Callback(() => AffectedUser.UserName = string.Empty)
                 .Returns(() => Persistence);
@@ -190,7 +191,7 @@ public class AuditDescriptionTests
 
         Assert.IsType<BadRequestObjectResult>(await fixture.Execute("user-update"));
         Assert.Empty(fixture.WrittenLogs);
-        fixture.Users.Verify(x => x.UpdateUser(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<int>()), Times.Never());
+        fixture.Users.Verify(x => x.UpdateUser(It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<int>(), It.IsAny<int?>()), Times.Never());
     }
 
     [Theory]
