@@ -3,6 +3,7 @@ using Authentication.Domain.Dtos;
 using Authentication.Domain.Interfaces;
 using Authentication.Domain.Models;
 using AutoMapper;
+using Authentication.Domain.Exceptions;
 
 namespace Authentication.Application.Services
 {
@@ -25,16 +26,16 @@ namespace Authentication.Application.Services
         /// <param name="page">Type: int - Página solicitada</param>
         /// <param name="take">Type: int - Cantidad de registros por página</param>
         /// <param name="search">Type: string? - Filtro opcional por UserLogin</param>
-        /// <returns>Type: PagedDto UserDto - Lista paginada con usuarios y su rol asociado</returns>
-        public async Task<PagedDto<UserDto>> GetAll(int page, int take, string? search)
+        /// <returns>Lista paginada administrativa con usuarios, rol y asignación PDV.</returns>
+        public async Task<PagedDto<UserAdministrationDto>> GetAll(int page, int take, string? search)
         {
             try
             {
                 var users = await _userRepository.GetAllUsers(page, take, search);
 
-                return new PagedDto<UserDto>
+                return new PagedDto<UserAdministrationDto>
                 {
-                    Items = _mapper.Map<IEnumerable<UserDto>>(users.Items),
+                    Items = _mapper.Map<IEnumerable<UserAdministrationDto>>(users.Items),
                     Total = users.Total,
                     Page = users.Page,
                     Take = users.Take,
@@ -52,17 +53,17 @@ namespace Authentication.Application.Services
         /// Método que recibe la solicitud del controlador para obtener un registro de la tabla User.
         /// </summary>
         /// <param name="idUser">Type: int - Identificador del usuario a buscar</param>
-        /// <returns>Type: UserDto - Usuario con información del rol asociado</returns>
-        public async Task<UserDto> GetById(int idUser)
+        /// <returns>Usuario administrativo con información del rol y la asignación PDV.</returns>
+        public async Task<UserAdministrationDto> GetById(int idUser)
         {
             try
             {
-                var user = await _userRepository.GetUserById(idUser);
+                var user = await _userRepository.GetAdministrativeUserById(idUser);
 
                 if (user is null)
                     return null!;
 
-                return _mapper.Map<UserDto>(user);
+                return _mapper.Map<UserAdministrationDto>(user);
             }
             catch (Exception ex)
             {
@@ -116,13 +117,18 @@ namespace Authentication.Application.Services
                     StatusUser = entity.StatusUser
                 };
 
-                await _userRepository.CreateUser(user, entity.IdRole);
+                var assignment = await _userRepository.CreateUser(user, entity.IdRole, entity.SolutionCenterId);
 
                 return new AuditResultDto
                 {
                     IsSuccess = true,
-                    Description = $"Se creó el usuario {user.UserName} con el rol {role.NameRole}."
+                    Description = WithAssignmentAudit(
+                        $"Se creó el usuario {user.UserName} con el rol {role.NameRole}.", assignment)
                 };
+            }
+            catch (BusinessRuleException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -159,23 +165,46 @@ namespace Authentication.Application.Services
                 if (role == null)
                     return new AuditResultDto();
 
-                await _userRepository.UpdateUser(
+                var assignment = await _userRepository.UpdateUser(
                     entity.IdUser,
                     entity.StatusUser,
-                    entity.IdRole
+                    entity.IdRole,
+                    entity.SolutionCenterId
                 );
 
                 return new AuditResultDto
                 {
                     IsSuccess = true,
-                    Description = $"Se actualizó el usuario {currentUser.UserName}: rol {role.NameRole} y estado {(entity.StatusUser ? "activo" : "inactivo")}."
+                    Description = WithAssignmentAudit(
+                        $"Se actualizó el usuario {currentUser.UserName}: rol {role.NameRole} y estado {(entity.StatusUser ? "activo" : "inactivo")}.", assignment)
                 };
+            }
+            catch (BusinessRuleException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
                 Exception exception = new("Failed" + ex.InnerException + "\n" + ex.Message);
                 throw exception;
             }
+        }
+
+        private static string WithAssignmentAudit(string description, UserAssignmentResultDto assignment)
+        {
+            var previous = assignment.PreviousSolutionCenterCode;
+            var current = assignment.SolutionCenterCode;
+            if (previous == current)
+                return description;
+
+            var detail = previous is null ? $" Se asignó el PDV {current}."
+                : current is null ? $" Se eliminó la asignación del PDV {previous}."
+                : $" Se cambió el PDV de {previous} a {current}.";
+            // The audit description column is limited to 500 characters.
+            var available = 500 - detail.Length;
+            if (description.Length > available)
+                description = description[..(available - 1)] + "…";
+            return description + detail;
         }
 
         /// <summary>

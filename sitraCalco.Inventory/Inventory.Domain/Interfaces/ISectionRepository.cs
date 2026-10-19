@@ -16,7 +16,7 @@ namespace Inventory.Domain.Interfaces
             Section section);
 
         Task<bool> UpdateSection(
-            Section section);
+            Section section, long? solutionCenterTypeId = null);
 
         Task<bool> HasAssociations(
             long sectionId);

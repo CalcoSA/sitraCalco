@@ -402,6 +402,67 @@ namespace Inventory.Api.Controllers
             }
         }
 
+        /// <summary>
+        /// Retira una sección y sus asignaciones de productos únicamente del centro indicado.
+        /// </summary>
+        [HttpDelete("{solutionCenterId:long}/sections/{sectionId:long}")]
+        public async Task<IActionResult> DeleteSectionAssignment(long solutionCenterId, long sectionId)
+        {
+            var userName = User.GetUserLogin();
+            try
+            {
+                if (solutionCenterId <= 0 || sectionId <= 0)
+                    return SectionAssignmentFailure(SolutionCenterSectionStatus.InvalidRequest)!;
+
+                if (string.IsNullOrWhiteSpace(userName))
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+
+                var auditResult = await _solutionCenterApplication.DeleteSectionAssignment(solutionCenterId, sectionId);
+                var result = auditResult.Value;
+                if (result.Status == SolutionCenterSectionStatus.HasInventoryConfigurations)
+                    return Conflict(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "No se puede retirar la sección porque tiene configuraciones de inventario vinculadas, activas o inactivas. Desvincúlelas antes de continuar.",
+                        Result = new { }
+                    });
+
+                var failure = SectionAssignmentFailure(result.Status);
+                if (failure is not null)
+                    return failure;
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Eliminar",
+                    Module = "ConfiguracionBodegas",
+                    Description = auditResult.Description,
+                    UserName = userName.Trim()
+                });
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Sección retirada del centro de solución correctamente.",
+                    Result = new { SolutionCenterId = solutionCenterId, SectionId = sectionId, result.DeletedProducts }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al retirar la sección {SectionId} del centro {SolutionCenterId}.", sectionId, solutionCenterId);
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al retirar la sección del centro de solución.",
+                    Result = new { }
+                });
+            }
+        }
+
         private IActionResult? SectionAssignmentFailure(SolutionCenterSectionStatus status)
         {
             if (status == SolutionCenterSectionStatus.Success)

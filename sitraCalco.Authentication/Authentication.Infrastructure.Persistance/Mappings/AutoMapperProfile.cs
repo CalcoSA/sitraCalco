@@ -9,9 +9,10 @@ namespace Authentication.Infrastructure.Persistance.Mappings
         public AutoMapperProfile()
         {
             CreateMap<Menuoption, MenuOptionDto>();
+            CreateMap<SolutionCenter, SolutionCenterDto>();
             CreateMap<MenuOptionDto, Menuoption>();
             CreateMap<Role, RoleDto>();
-            CreateMap<RoleDto, Role>();
+            CreateMap<RoleDto, Role>().ForMember(dest => dest.RoleCode, opt => opt.Ignore());
             CreateMap<Role, CreateRoleDto>();
             CreateMap<CreateRoleDto, Role>();
             CreateMap<Role, UpdateRoleDto>();
@@ -49,6 +50,27 @@ namespace Authentication.Infrastructure.Persistance.Mappings
                         ? src.Userroles.First().IdRoleNavigation.StatusRole
                         : (sbyte)0)
                 );
+
+            CreateMap<User, UserAdministrationDto>()
+                .ForMember(dest => dest.IdRole, opt => opt.MapFrom(src => src.Userroles.Any()
+                    ? src.Userroles.First().IdRoleNavigation.IdRole : 0))
+                .ForMember(dest => dest.NameRole, opt => opt.MapFrom(src => src.Userroles.Any()
+                    ? src.Userroles.First().IdRoleNavigation.NameRole : null))
+                .ForMember(dest => dest.StatusRole, opt => opt.MapFrom(src => src.Userroles.Any()
+                    ? src.Userroles.First().IdRoleNavigation.StatusRole : (sbyte)0))
+                .ForMember(dest => dest.SolutionCenterId, opt => opt.Ignore())
+                .ForMember(dest => dest.SolutionCenterCode, opt => opt.Ignore())
+                .ForMember(dest => dest.SolutionCenterName, opt => opt.Ignore())
+                .AfterMap((src, dest) =>
+                {
+                    var assignment = src.Userroles.FirstOrDefault();
+                    if (assignment?.IdRoleNavigation.RoleCode == Role.PointOfSaleCode)
+                    {
+                        dest.SolutionCenterId = assignment.SolutionCenterId;
+                        dest.SolutionCenterCode = assignment.SolutionCenter?.SolutionCenterCode;
+                        dest.SolutionCenterName = assignment.SolutionCenter?.SolutionCenterName;
+                    }
+                });
         }
     }
 }

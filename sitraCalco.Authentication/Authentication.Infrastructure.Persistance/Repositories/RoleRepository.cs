@@ -2,6 +2,7 @@
 using Authentication.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Authentication.Domain.Models;
+using Authentication.Domain.Exceptions;
 
 namespace Authentication.Infrastructure.Persistance.Repositories
 {
@@ -175,6 +176,9 @@ namespace Authentication.Infrastructure.Persistance.Repositories
 
                 if (role is null)
                     throw new InvalidOperationException("El rol no existe.");
+
+                if (role.RoleCode == Role.PointOfSaleCode)
+                    throw new BusinessRuleException("No se puede eliminar el rol funcional PDV.");
 
                 var roleMenuOptions = await _context.Rolemenuoptions
                     .Where(x => x.IdRole == idRole)

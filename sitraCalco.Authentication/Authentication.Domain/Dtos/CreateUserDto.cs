@@ -7,5 +7,6 @@
         public string? UserName { get; set; }
         public bool StatusUser { get; set; }
         public int IdRole { get; set; }
+        public int? SolutionCenterId { get; set; }
     }
 }

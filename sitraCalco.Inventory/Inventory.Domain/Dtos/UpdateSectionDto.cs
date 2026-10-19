@@ -5,5 +5,7 @@
         public string SectionName { get; set; } = null!;
 
         public bool IsActive { get; set; }
+
+        public long? SolutionCenterTypeId { get; set; }
     }
 }

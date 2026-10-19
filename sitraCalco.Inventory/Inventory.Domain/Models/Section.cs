@@ -6,6 +6,8 @@
 
         public long solution_center_type_id { get; set; }
 
+        public SolutionCenterType SolutionCenterType { get; set; } = null!;
+
         public string section_name { get; set; } = null!;
 
         public bool is_active { get; set; }

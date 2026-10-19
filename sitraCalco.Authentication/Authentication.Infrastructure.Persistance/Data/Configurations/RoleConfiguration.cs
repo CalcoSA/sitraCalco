@@ -14,6 +14,14 @@ namespace Authentication.Infrastructure.Persistance.Data.Configurations
 
             entity.HasIndex(e => e.NameRole, "uq_sitracalco_authentication_name").IsUnique();
 
+            entity.HasIndex(e => e.RoleCode, "uq_auth_role_code").IsUnique();
+            entity.Property(e => e.RoleCode)
+                .HasColumnName("role_code")
+                .HasColumnType("varchar(32)")
+                .HasMaxLength(32)
+                .HasCharSet("ascii")
+                .UseCollation("ascii_bin");
+
             entity.Property(e => e.NameRole)
                 .IsRequired()
                 .HasMaxLength(100)

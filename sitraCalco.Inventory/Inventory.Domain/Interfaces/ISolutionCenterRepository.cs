@@ -41,6 +41,8 @@ namespace Inventory.Domain.Interfaces
 
         Task<bool> UpdateSectionAssignmentStatus(long solutionCenterId,long sectionId,bool isActive);
 
+        Task<AuditResult<SolutionCenterSectionResultDto>> DeleteSectionAssignment(long solutionCenterId,long sectionId);
+
         Task<AuditResult<long>> AddProductToSection(long solutionCenterId,long sectionId,Product product,int position,string createdBy);
 
         Task<AuditResult<bool>> UpdateProductOrder(long solutionCenterId,long sectionId,long solutionCenterProductId,int newPosition);

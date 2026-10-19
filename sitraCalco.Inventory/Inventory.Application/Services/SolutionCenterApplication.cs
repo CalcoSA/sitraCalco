@@ -506,6 +506,17 @@ namespace Inventory.Application.Services
             }
         }
 
+        public Task<AuditResult<SolutionCenterSectionResultDto>> DeleteSectionAssignment(
+            long solutionCenterId, long sectionId)
+        {
+            if (solutionCenterId <= 0 || sectionId <= 0)
+                return Task.FromResult(new AuditResult<SolutionCenterSectionResultDto>(
+                    new() { Status = SolutionCenterSectionStatus.InvalidRequest }));
+
+            // Existencia y dependencias se comprueban bajo el bloqueo del repositorio.
+            return _solutionCenterRepository.DeleteSectionAssignment(solutionCenterId, sectionId);
+        }
+
         public async Task<AuditResult<long>> AddProductToSection(
     long solutionCenterId,
     long sectionId,

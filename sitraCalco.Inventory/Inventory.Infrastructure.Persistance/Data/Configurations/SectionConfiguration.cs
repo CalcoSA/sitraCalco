@@ -32,7 +32,7 @@ namespace Inventory.Infrastructure.Persistance.Data.Configurations
             entity.HasIndex(e => e.solution_center_type_id)
                 .HasDatabaseName("ix_section_solution_center_type_id");
 
-            entity.HasOne<SolutionCenterType>()
+            entity.HasOne(section => section.SolutionCenterType)
                 .WithMany()
                 .HasForeignKey(e => e.solution_center_type_id)
                 .OnDelete(DeleteBehavior.Restrict)
