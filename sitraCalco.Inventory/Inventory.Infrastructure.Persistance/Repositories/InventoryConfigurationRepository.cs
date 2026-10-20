@@ -503,8 +503,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             {
                 InventoryConfigurationId = configuration.inventory_configuration_id,
                 InventoryConfigurationName = configuration.inventory_configuration_name,
-                StartDate = configuration.start_date,
-                EndDate = configuration.end_date
+                StartDay = configuration.start_day,
+                EndDay = configuration.end_day
             })
             .ToListAsync();
 
@@ -695,11 +695,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                         InventoryConfigurationName =
                             configuration.inventory_configuration_name,
 
-                        StartDate =
-                            configuration.start_date,
+                        StartDay =
+                            configuration.start_day,
 
-                        EndDate =
-                            configuration.end_date,
+                        EndDay =
+                            configuration.end_day,
 
                         SectionId =
                             section.section_id,
@@ -742,6 +742,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                         InventoryConfigurationId =
                             day.inventory_configuration_id,
 
+                        InventoryConfigurationDayId = day.inventory_configuration_day_id,
+
                         DayOfWeek =
                             day.day_of_week
                     })
@@ -754,8 +756,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     {
                         item.InventoryConfigurationId,
                         item.InventoryConfigurationName,
-                        item.StartDate,
-                        item.EndDate
+                        item.StartDay,
+                        item.EndDay
                     })
                     .Select(group =>
                         new InventoryConfigurationDetailDto
@@ -766,11 +768,19 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                             InventoryConfigurationName =
                                 group.Key.InventoryConfigurationName,
 
-                            StartDate =
-                                group.Key.StartDate,
+                            StartDay =
+                                group.Key.StartDay,
 
-                            EndDate =
-                                group.Key.EndDate,
+                            EndDay =
+                                group.Key.EndDay,
+
+                            DaysOfWeek = dayRows
+                                .Where(day => day.InventoryConfigurationId == group.Key.InventoryConfigurationId)
+                                .Select(day => new InventoryConfigurationDayDto
+                                {
+                                    InventoryConfigurationDayId = day.InventoryConfigurationDayId,
+                                    DayOfWeek = day.DayOfWeek
+                                }).ToList(),
 
                             Days =
                                 dayRows
@@ -830,11 +840,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                             InventoryConfigurationName =
                                 item.inventory_configuration_name,
 
-                            StartDate =
-                                item.start_date,
+                            StartDay =
+                                item.start_day,
 
-                            EndDate =
-                                item.end_date
+                            EndDay =
+                                item.end_day
                         })
                     .FirstOrDefaultAsync();
 
@@ -842,7 +852,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 return null;
 
             // 2. Obtener los días asociados.
-            configuration.Days =
+            configuration.DaysOfWeek =
                 await _context.InventoryConfigurationDays
                     .AsNoTracking()
                     .Where(day =>
@@ -850,9 +860,14 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                         inventoryConfigurationId)
                     .OrderBy(day =>
                         day.inventory_configuration_day_id)
-                    .Select(day =>
-                        day.day_of_week)
+                    .Select(day => new InventoryConfigurationDayDto
+                    {
+                        InventoryConfigurationDayId = day.inventory_configuration_day_id,
+                        DayOfWeek = day.day_of_week
+                    })
                     .ToListAsync();
+
+            configuration.Days = configuration.DaysOfWeek.Select(day => day.DayOfWeek).ToList();
 
             // 3. Obtener las asociaciones de la configuración.
             var assignmentRows =
@@ -1046,36 +1061,87 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                         .ToUpper() == normalizedName);
         }
         /// <summary>
-        /// Actualiza el nombre y el rango de fechas
+        /// Actualiza el nombre y el rango de días mensuales
         /// de una configuración de inventario.
         /// </summary>
-        public async Task<bool> UpdateInventoryConfiguration(
-            long inventoryConfigurationId,
-            string inventoryConfigurationName,
-            DateTime? startDate,
-            DateTime? endDate)
+        public async Task<InventoryConfigurationDto?> UpdateInventoryConfiguration(
+            long inventoryConfigurationId, UpdateInventoryConfigurationDto request)
         {
-            var configuration =
-                await _context.InventoryConfigurations
-                    .FirstOrDefaultAsync(item =>
-                        item.inventory_configuration_id ==
-                        inventoryConfigurationId);
-
+            var configuration = await _context.InventoryConfigurations.AsNoTracking()
+                .FirstOrDefaultAsync(item => item.inventory_configuration_id == inventoryConfigurationId);
             if (configuration is null)
-                return false;
+                return null;
 
-            configuration.inventory_configuration_name =
-                inventoryConfigurationName.Trim();
+            var name = request.HasName ? request.InventoryConfigurationName?.Trim() : configuration.inventory_configuration_name;
+            var startDay = request.HasStartDay ? request.StartDay : configuration.start_day;
+            var endDay = request.HasEndDay ? request.EndDay : configuration.end_day;
+            if (string.IsNullOrWhiteSpace(name) || name.Length > 100 ||
+                !startDay.HasValue || !endDay.HasValue || !MonthlyInventoryRange.IsValid(startDay.Value, endDay.Value))
+                return null;
 
-            configuration.start_date =
-                startDate?.Date;
+            if (request.HasName && await ExistsByName(name, inventoryConfigurationId))
+                return null;
 
-            configuration.end_date =
-                endDate?.Date;
+            // Comparar los valores leídos evita perder cambios de otro PATCH entre lectura y escritura.
+            // Una sola sentencia guarda el rango completo de forma atómica, incluso sin CHECK en MySQL antiguo.
+            var updated = await _context.InventoryConfigurations
+                .Where(item => item.inventory_configuration_id == inventoryConfigurationId &&
+                    item.inventory_configuration_name == configuration.inventory_configuration_name &&
+                    item.start_day == configuration.start_day && item.end_day == configuration.end_day)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.inventory_configuration_name, name)
+                    .SetProperty(item => item.start_day, startDay.Value)
+                    .SetProperty(item => item.end_day, endDay.Value));
 
-            await _context.SaveChangesAsync();
+            return updated == 1 ? new InventoryConfigurationDto
+            {
+                InventoryConfigurationId = inventoryConfigurationId,
+                InventoryConfigurationName = name,
+                StartDay = startDay.Value,
+                EndDay = endDay.Value
+            } : null;
+        }
 
-            return true;
+        public async Task<PagedDto<InventoryConfigurationListDto>> GetInventoryConfigurations(int page, int take)
+        {
+            var query = _context.InventoryConfigurations.AsNoTracking();
+            var total = await query.CountAsync();
+            var items = await query.OrderBy(item => item.inventory_configuration_name)
+                .ThenBy(item => item.inventory_configuration_id)
+                .Skip(checked((page - 1) * take)).Take(take)
+                .Select(item => new InventoryConfigurationListDto
+                {
+                    InventoryConfigurationId = item.inventory_configuration_id,
+                    InventoryConfigurationName = item.inventory_configuration_name,
+                    StartDay = item.start_day,
+                    EndDay = item.end_day
+                }).ToListAsync();
+
+            if (items.Count > 0)
+            {
+                var ids = items.Select(item => item.InventoryConfigurationId).ToList();
+                var days = await _context.InventoryConfigurationDays.AsNoTracking()
+                    .Where(day => ids.Contains(day.inventory_configuration_id))
+                    .OrderBy(day => day.inventory_configuration_day_id)
+                    .Select(day => new
+                    {
+                        day.inventory_configuration_id,
+                        Day = new InventoryConfigurationDayDto
+                        {
+                            InventoryConfigurationDayId = day.inventory_configuration_day_id,
+                            DayOfWeek = day.day_of_week
+                        }
+                    }).ToListAsync();
+                var lookup = days.ToLookup(day => day.inventory_configuration_id, day => day.Day);
+                foreach (var item in items)
+                    item.DaysOfWeek = lookup[item.InventoryConfigurationId].ToList();
+            }
+
+            return new PagedDto<InventoryConfigurationListDto>
+            {
+                Items = items, Total = total, Page = page, Take = take,
+                Pages = (int)Math.Ceiling(total / (double)take)
+            };
         }
         /// <summary>
         /// Valida si un día ya está registrado

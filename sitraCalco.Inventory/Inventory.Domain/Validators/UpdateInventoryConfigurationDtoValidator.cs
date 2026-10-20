@@ -18,16 +18,21 @@ namespace Inventory.Domain.Validators
                     "El nombre de la configuración de inventario es obligatorio.")
                 .MaximumLength(100)
                 .WithMessage(
-                    "El nombre de la configuración de inventario no puede superar los 100 caracteres.");
+                    "El nombre de la configuración de inventario no puede superar los 100 caracteres.")
+                .When(x => x.HasName);
+
+            RuleFor(x => x.StartDay).NotNull().InclusiveBetween(1, 31)
+                .When(x => x.HasStartDay);
+            RuleFor(x => x.EndDay).NotNull().InclusiveBetween(1, 31)
+                .When(x => x.HasEndDay);
 
             RuleFor(x => x)
                 .Must(request =>
-                    !request.StartDate.HasValue ||
-                    !request.EndDate.HasValue ||
-                    request.StartDate.Value.Date <=
-                    request.EndDate.Value.Date)
+                    !request.StartDay.HasValue ||
+                    !request.EndDay.HasValue ||
+                    request.StartDay.Value <= request.EndDay.Value)
                 .WithMessage(
-                    "La fecha de inicio no puede ser posterior a la fecha de fin.");
+                    "startDay no puede superar endDay.");
         }
     }
 }

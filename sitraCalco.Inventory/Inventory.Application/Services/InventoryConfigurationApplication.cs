@@ -5,6 +5,8 @@ using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
 using Inventory.Domain.Options;
 using Microsoft.Extensions.Options;
+using Inventory.Domain.Helpers;
+using Inventory.Domain.Validators;
 
 namespace Inventory.Application.Services
 {
@@ -16,19 +18,22 @@ namespace Inventory.Application.Services
         private readonly IPermissionApplication _permissionApplication;
         private readonly IStorageService? _storageService;
         private readonly GoogleCloudStorageOptions? _storageOptions;
+        private readonly TimeProvider _timeProvider;
 
         public InventoryConfigurationApplication(
             IInventoryConfigurationRepository
                 inventoryConfigurationRepository,
             IPermissionApplication permissionApplication,
             IStorageService? storageService = null,
-            IOptions<GoogleCloudStorageOptions>? storageOptions = null)
+            IOptions<GoogleCloudStorageOptions>? storageOptions = null,
+            TimeProvider? timeProvider = null)
         {
             _inventoryConfigurationRepository =
                 inventoryConfigurationRepository;
             _permissionApplication = permissionApplication;
             _storageService = storageService;
             _storageOptions = storageOptions?.Value;
+            _timeProvider = timeProvider ?? TimeProvider.System;
         }
 
         /// <summary>
@@ -46,10 +51,7 @@ namespace Inventory.Application.Services
                     request.InventoryConfigurationName))
                     return 0;
 
-                if (request.StartDate.HasValue &&
-                    request.EndDate.HasValue &&
-                    request.StartDate.Value.Date >
-                    request.EndDate.Value.Date)
+                if (!new CreateInventoryConfigurationDtoValidator().Validate(request).IsValid)
                 {
                     return 0;
                 }
@@ -71,11 +73,11 @@ namespace Inventory.Application.Services
                         inventory_configuration_name =
                             configurationName,
 
-                        start_date =
-                            request.StartDate?.Date,
+                        start_day =
+                            request.StartDay,
 
-                        end_date =
-                            request.EndDate?.Date
+                        end_day =
+                            request.EndDay
                     };
 
                 return await
@@ -333,7 +335,7 @@ namespace Inventory.Application.Services
 
             // Mantener la convención de hora local del servidor utilizada por Inventory.
             // Una sola lectura evita inconsistencias entre fecha y día al cruzar medianoche.
-            var today = DateTime.Today;
+            var today = _timeProvider.GetLocalNow().Date;
             var currentDay = today.DayOfWeek switch
             {
                 DayOfWeek.Monday => "Lunes",
@@ -350,8 +352,7 @@ namespace Inventory.Application.Services
 
             result.Data = configurations
                 .Where(configuration =>
-                    (!configuration.StartDate.HasValue || today >= configuration.StartDate.Value.Date) &&
-                    (!configuration.EndDate.HasValue || today <= configuration.EndDate.Value.Date) &&
+                    MonthlyInventoryRange.Includes(today, configuration.StartDay, configuration.EndDay) &&
                     (configuration.Days.Count == 0 || configuration.Days.Any(day =>
                         string.Equals(NormalizeDay(day), currentDay, StringComparison.OrdinalIgnoreCase))))
                 .OrderBy(configuration => configuration.InventoryConfigurationName)
@@ -637,68 +638,32 @@ namespace Inventory.Application.Services
             }
         }
         /// <summary>
-        /// Actualiza el nombre y el rango de fechas
+        /// Actualiza el nombre y el rango de días mensuales
         /// de una configuración de inventario.
         /// </summary>
-        public async Task<bool> UpdateInventoryConfiguration(
+        public async Task<InventoryConfigurationDto?> UpdateInventoryConfiguration(
             long inventoryConfigurationId,
             UpdateInventoryConfigurationDto request)
         {
-            try
-            {
-                if (inventoryConfigurationId <= 0)
-                    return false;
+            if (inventoryConfigurationId <= 0 || request is null ||
+                !new UpdateInventoryConfigurationDtoValidator().Validate(request).IsValid)
+                return null;
 
-                if (request is null)
-                    return false;
+            return await _inventoryConfigurationRepository.UpdateInventoryConfiguration(inventoryConfigurationId, request);
+        }
 
-                if (string.IsNullOrWhiteSpace(
-                    request.InventoryConfigurationName))
-                    return false;
+        public async Task<PagedDto<InventoryConfigurationListDto>?> GetInventoryConfigurations(
+            string role, int page, int take)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+                return null;
 
-                if (request.StartDate.HasValue &&
-                    request.EndDate.HasValue &&
-                    request.StartDate.Value.Date >
-                    request.EndDate.Value.Date)
-                {
-                    return false;
-                }
+            var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+            var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+            if (!canViewAll && !canViewWarehouses)
+                return null;
 
-                // Validar que la configuración exista.
-                var configurationExists =
-                    await _inventoryConfigurationRepository
-                        .ConfigurationExists(
-                            inventoryConfigurationId);
-
-                if (!configurationExists)
-                    return false;
-
-                var configurationName =
-                    request.InventoryConfigurationName
-                        .Trim();
-
-                // Validar que no exista OTRA configuración
-                // con el mismo nombre.
-                var nameExists =
-                    await _inventoryConfigurationRepository
-                        .ExistsByName(
-                            configurationName,
-                            inventoryConfigurationId);
-
-                if (nameExists)
-                    return false;
-
-                return await _inventoryConfigurationRepository
-                    .UpdateInventoryConfiguration(
-                        inventoryConfigurationId,
-                        configurationName,
-                        request.StartDate,
-                        request.EndDate);
-            }
-            catch
-            {
-                throw;
-            }
+            return await _inventoryConfigurationRepository.GetInventoryConfigurations(page, take);
         }
         private static string? NormalizeDay(
     string day)

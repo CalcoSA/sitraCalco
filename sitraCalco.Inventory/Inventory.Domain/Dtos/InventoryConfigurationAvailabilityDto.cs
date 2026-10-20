@@ -7,9 +7,9 @@ namespace Inventory.Domain.Dtos
 
         public string InventoryConfigurationName { get; set; } = null!;
 
-        public DateTime? StartDate { get; set; }
+        public int StartDay { get; set; }
 
-        public DateTime? EndDate { get; set; }
+        public int EndDay { get; set; }
 
         public List<string> Days { get; set; } = new List<string>();
     }

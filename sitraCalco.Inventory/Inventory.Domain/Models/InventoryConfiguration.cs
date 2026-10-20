@@ -6,8 +6,8 @@
 
         public string inventory_configuration_name { get; set; } = null!;
 
-        public DateTime? start_date { get; set; }
+        public int start_day { get; set; }
 
-        public DateTime? end_date { get; set; }
+        public int end_day { get; set; }
     }
 }

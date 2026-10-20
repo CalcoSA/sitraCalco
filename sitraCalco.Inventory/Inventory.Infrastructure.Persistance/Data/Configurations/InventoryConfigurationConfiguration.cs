@@ -27,12 +27,14 @@ namespace Inventory.Infrastructure.Persistance.Data.Configurations
                 .IsRequired();
 
             entity.Property(
-                    e => e.start_date)
-                .HasColumnType("date");
+                    e => e.start_day)
+                .HasColumnType("tinyint unsigned")
+                .IsRequired();
 
             entity.Property(
-                    e => e.end_date)
-                .HasColumnType("date");
+                    e => e.end_day)
+                .HasColumnType("tinyint unsigned")
+                .IsRequired();
 
             entity.HasIndex(
                     e => e.inventory_configuration_name)

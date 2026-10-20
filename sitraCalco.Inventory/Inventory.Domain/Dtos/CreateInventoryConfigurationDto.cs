@@ -1,11 +1,14 @@
-﻿namespace Inventory.Domain.Dtos
+﻿using System.Text.Json.Serialization;
+
+namespace Inventory.Domain.Dtos
 {
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
     public class CreateInventoryConfigurationDto
     {
         public string InventoryConfigurationName { get; set; } = null!;
 
-        public DateTime? StartDate { get; set; }
+        public int StartDay { get; set; }
 
-        public DateTime? EndDate { get; set; }
+        public int EndDay { get; set; }
     }
 }
