@@ -22,12 +22,9 @@ namespace Inventory.Domain.Validators
 
             RuleFor(x => x)
                 .Must(request =>
-                    !request.StartDate.HasValue ||
-                    !request.EndDate.HasValue ||
-                    request.StartDate.Value.Date <=
-                    request.EndDate.Value.Date)
+                    Helpers.MonthlyInventoryRange.IsValid(request.StartDay, request.EndDay))
                 .WithMessage(
-                    "La fecha de inicio no puede ser posterior a la fecha de fin.");
+                    "startDay y endDay son obligatorios, deben estar entre 1 y 31 y startDay no puede superar endDay.");
         }
     }
 }

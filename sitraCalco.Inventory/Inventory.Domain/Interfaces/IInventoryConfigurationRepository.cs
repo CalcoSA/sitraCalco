@@ -25,7 +25,8 @@ namespace Inventory.Domain.Interfaces
         Task<InventoryConfigurationByIdDto?>GetInventoryConfigurationById(long inventoryConfigurationId);
         Task<AuditResult<bool>> UpdateAssignmentStatus(long inventoryConfigurationId,long solutionCenterId,long sectionId,bool isActive);
         Task<bool> ExistsByName(string inventoryConfigurationName,long excludeInventoryConfigurationId);
-        Task<bool> UpdateInventoryConfiguration(long inventoryConfigurationId,string inventoryConfigurationName,DateTime? startDate,DateTime? endDate);
+        Task<InventoryConfigurationDto?> UpdateInventoryConfiguration(long inventoryConfigurationId, UpdateInventoryConfigurationDto request);
+        Task<PagedDto<InventoryConfigurationListDto>> GetInventoryConfigurations(int page, int take);
         Task<bool> DayExists(long inventoryConfigurationId,string dayOfWeek);
         Task<AuditResult<int>> AddDays(IEnumerable<InventoryConfigurationDay> days);
         Task<AuditResult<bool>> DeleteDay(long inventoryConfigurationId,string dayOfWeek);

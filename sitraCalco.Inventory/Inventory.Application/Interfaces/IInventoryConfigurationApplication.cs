@@ -15,7 +15,8 @@ namespace Inventory.Application.Interfaces
         Task<SolutionCenterInventoryConfigurationsResultDto>GetInventoryConfigurationsBySolutionCenterId(long solutionCenterId,string role);
         Task<InventoryConfigurationByIdResultDto>GetInventoryConfigurationById(long inventoryConfigurationId,string role);
         Task<AuditResult<bool>> UpdateAssignmentStatus(long inventoryConfigurationId,long solutionCenterId,long sectionId,bool isActive);
-        Task<bool> UpdateInventoryConfiguration(long inventoryConfigurationId,UpdateInventoryConfigurationDto request);
+        Task<InventoryConfigurationDto?> UpdateInventoryConfiguration(long inventoryConfigurationId,UpdateInventoryConfigurationDto request);
+        Task<PagedDto<InventoryConfigurationListDto>?> GetInventoryConfigurations(string role, int page, int take);
         Task<AuditResult<int>> AddDays(long inventoryConfigurationId, AddInventoryConfigurationDaysDto request);
         Task<AuditResult<bool>> DeleteDay(long inventoryConfigurationId,string dayOfWeek);
         Task<AuditResult<bool>> DeleteAssignment(long inventoryConfigurationId,long solutionCenterId,long sectionId);

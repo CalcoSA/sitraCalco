@@ -231,8 +231,8 @@ namespace Inventory.Test.Controllers
                 new CreateInventoryConfigurationDto
                 {
                     InventoryConfigurationName = "Uno a uno",
-                    StartDate = new DateTime(2026, 9, 1),
-                    EndDate = new DateTime(2026, 9, 30)
+                    StartDay = 1,
+                    EndDay = 30
                 };
 
             _inventoryConfigurationApplicationMock
@@ -2033,7 +2033,7 @@ namespace Inventory.Test.Controllers
         }
 
         [Fact]
-        public async Task UpdateInventoryConfiguration_ShouldReturnBadRequest_WhenApplicationReturnsFalse()
+        public async Task UpdateInventoryConfiguration_ShouldReturnBadRequest_WhenApplicationReturnsNull()
         {
             var request =
                 new UpdateInventoryConfigurationDto
@@ -2046,7 +2046,7 @@ namespace Inventory.Test.Controllers
                     x.UpdateInventoryConfiguration(
                         1,
                         request))
-                .ReturnsAsync(false);
+                .ReturnsAsync((InventoryConfigurationDto?)null);
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2066,8 +2066,8 @@ namespace Inventory.Test.Controllers
                 new UpdateInventoryConfigurationDto
                 {
                     InventoryConfigurationName = "  Uno a uno  ",
-                    StartDate = new DateTime(2026, 9, 1),
-                    EndDate = new DateTime(2026, 9, 30)
+                    StartDay = 1,
+                    EndDay = 30
                 };
 
             _inventoryConfigurationApplicationMock
@@ -2075,7 +2075,7 @@ namespace Inventory.Test.Controllers
                     x.UpdateInventoryConfiguration(
                         1,
                         request))
-                .ReturnsAsync(true);
+                .ReturnsAsync(new InventoryConfigurationDto { InventoryConfigurationId = 1, InventoryConfigurationName = "Uno a uno", StartDay = 1, EndDay = 30 });
 
             var result =
                 await _controller.WithIdentity(userLogin: "juan.zapata")
@@ -2096,7 +2096,7 @@ namespace Inventory.Test.Controllers
                     It.Is<CreateLogDto>(log =>
                         log.Action == "Actualizar" &&
                         log.Module == "ConfiguracionInventarios" &&
-                        log.Description == "Se actualizó la configuración de inventario Uno a uno. Fecha de inicio: 2026-09-01. Fecha de fin: 2026-09-30.")),
+                        log.Description == "Se actualizó la configuración de inventario Uno a uno. Día inicial mensual: 1. Día final mensual: 30.")),
                 Times.Once);
         }
 

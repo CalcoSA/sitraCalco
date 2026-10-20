@@ -127,23 +127,12 @@ namespace Inventory.Api.Controllers
                         Message =
                             "No se pudo crear la configuración de inventario. " +
                             "Verifique que el nombre no esté registrado " +
-                            "y que el rango de fechas sea válido.",
+                            "y que el rango de días mensuales sea válido.",
                         Result = new { }
                     });
                 }
 
-                var dateDescription =
-                    !request.StartDate.HasValue &&
-                    !request.EndDate.HasValue
-                        ? "Sin rango de fechas definido."
-                        : $"Fecha de inicio: " +
-                          $"{(request.StartDate.HasValue
-                              ? request.StartDate.Value.ToString("yyyy-MM-dd")
-                              : "sin definir")}. " +
-                          $"Fecha de fin: " +
-                          $"{(request.EndDate.HasValue
-                              ? request.EndDate.Value.ToString("yyyy-MM-dd")
-                              : "sin definir")}.";
+                var dayDescription = $"Día inicial mensual: {request.StartDay}. Día final mensual: {request.EndDay}.";
 
                 await _logApplication.CreateLog(
                     new CreateLogDto
@@ -156,7 +145,7 @@ namespace Inventory.Api.Controllers
                         Description =
                             $"Se creó la configuración de inventario " +
                             $"{request.InventoryConfigurationName.Trim()}. " +
-                            $"{dateDescription}",
+                            $"{dayDescription}",
 
                         UserName =
                             userName.Trim()
@@ -982,9 +971,50 @@ namespace Inventory.Api.Controllers
             }
         }
         /// <summary>
-        /// Obtiene una configuración de inventario por su identificador,
-        /// incluyendo sus días, bodegas o puntos de venta y secciones,
-        /// aplicando visibilidad según el rol.
+        /// Lista las configuraciones administrativas con sus días semanales, sin filtrar por disponibilidad.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetInventoryConfigurations([FromQuery] int page = 1, [FromQuery] int take = 20)
+        {
+            var role = User.GetRoleName();
+            if (page <= 0 || take <= 0 || (long)(page - 1) * take > int.MaxValue)
+                return BadRequest(new ResponseApi
+                {
+                    IsSuccess = false, Message = "La página y el tamaño de página no son válidos.", Result = new { }
+                });
+
+            if (string.IsNullOrWhiteSpace(role))
+                return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                {
+                    IsSuccess = false, Message = "El token no contiene un nameRole válido.", Result = new { }
+                });
+
+            try
+            {
+                var result = await _inventoryConfigurationApplication.GetInventoryConfigurations(role, page, take);
+                if (result is null)
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false, Message = "El rol del token no tiene permisos para esta consulta.", Result = new { }
+                    });
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true, Message = "Configuraciones de inventario consultadas correctamente.", Result = result
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar las configuraciones de inventario para el rol {Role}.", role);
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false, Message = "Ocurrió un error al consultar las configuraciones de inventario.", Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Obtiene una configuración con días, centros y secciones, aplicando la visibilidad del rol.
         /// </summary>
         [HttpGet("{inventoryConfigurationId:long}/details")]
         public async Task<IActionResult> GetInventoryConfigurationById(
@@ -1215,7 +1245,7 @@ namespace Inventory.Api.Controllers
             }
         }
         /// <summary>
-        /// Actualiza el nombre y el rango de fechas
+        /// Actualiza el nombre y el rango de días mensuales
         /// de una configuración de inventario.
         /// </summary>
         [HttpPatch("{inventoryConfigurationId:long}")]
@@ -1284,7 +1314,7 @@ namespace Inventory.Api.Controllers
                             inventoryConfigurationId,
                             request);
 
-                if (!updated)
+                if (updated is null)
                 {
                     return BadRequest(new ResponseApi
                     {
@@ -1292,7 +1322,7 @@ namespace Inventory.Api.Controllers
                         Message =
                             "No se pudo actualizar la configuración de inventario. " +
                             "Verifique que exista, que el nombre no esté registrado " +
-                            "y que el rango de fechas sea válido.",
+                            "y que el rango de días mensuales sea válido.",
                         Result = new { }
                     });
                 }
@@ -1304,15 +1334,8 @@ namespace Inventory.Api.Controllers
                         Module = "ConfiguracionInventarios",
                         Description =
                             $"Se actualizó la configuración de inventario " +
-                            $"{request.InventoryConfigurationName.Trim()}. " +
-                            $"Fecha de inicio: " +
-                            $"{(request.StartDate.HasValue
-                                ? request.StartDate.Value.ToString("yyyy-MM-dd")
-                                : "sin definir")}. " +
-                            $"Fecha de fin: " +
-                            $"{(request.EndDate.HasValue
-                                ? request.EndDate.Value.ToString("yyyy-MM-dd")
-                                : "sin definir")}.",
+                            $"{updated.InventoryConfigurationName}. " +
+                            $"Día inicial mensual: {updated.StartDay}. Día final mensual: {updated.EndDay}.",
                         UserName =
                             userName.Trim()
                     });
@@ -1322,20 +1345,7 @@ namespace Inventory.Api.Controllers
                     IsSuccess = true,
                     Message =
                         "Configuración de inventario actualizada correctamente.",
-                    Result = new
-                    {
-                        InventoryConfigurationId =
-                            inventoryConfigurationId,
-
-                        InventoryConfigurationName =
-                            request.InventoryConfigurationName.Trim(),
-
-                        StartDate =
-                            request.StartDate?.Date,
-
-                        EndDate =
-                            request.EndDate?.Date
-                    }
+                    Result = updated
                 });
             }
             catch (Exception ex)
