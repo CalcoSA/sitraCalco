@@ -1076,7 +1076,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             var startDay = request.HasStartDay ? request.StartDay : configuration.start_day;
             var endDay = request.HasEndDay ? request.EndDay : configuration.end_day;
             if (string.IsNullOrWhiteSpace(name) || name.Length > 100 ||
-                !startDay.HasValue || !endDay.HasValue || !MonthlyInventoryRange.IsValid(startDay.Value, endDay.Value))
+                !MonthlyInventoryRange.IsValid(startDay, endDay))
                 return null;
 
             if (request.HasName && await ExistsByName(name, inventoryConfigurationId))
@@ -1090,15 +1090,15 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     item.start_day == configuration.start_day && item.end_day == configuration.end_day)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.inventory_configuration_name, name)
-                    .SetProperty(item => item.start_day, startDay.Value)
-                    .SetProperty(item => item.end_day, endDay.Value));
+                    .SetProperty(item => item.start_day, startDay)
+                    .SetProperty(item => item.end_day, endDay));
 
             return updated == 1 ? new InventoryConfigurationDto
             {
                 InventoryConfigurationId = inventoryConfigurationId,
                 InventoryConfigurationName = name,
-                StartDay = startDay.Value,
-                EndDay = endDay.Value
+                StartDay = startDay,
+                EndDay = endDay
             } : null;
         }
 
