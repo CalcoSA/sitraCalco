@@ -21,18 +21,17 @@ namespace Inventory.Domain.Validators
                     "El nombre de la configuración de inventario no puede superar los 100 caracteres.")
                 .When(x => x.HasName);
 
-            RuleFor(x => x.StartDay).NotNull().InclusiveBetween(1, 31)
-                .When(x => x.HasStartDay);
-            RuleFor(x => x.EndDay).NotNull().InclusiveBetween(1, 31)
-                .When(x => x.HasEndDay);
+            RuleFor(x => x.StartDay).InclusiveBetween(1, 31)
+                .When(x => x.HasStartDay && x.StartDay.HasValue);
+            RuleFor(x => x.EndDay).InclusiveBetween(1, 31)
+                .When(x => x.HasEndDay && x.EndDay.HasValue);
 
             RuleFor(x => x)
                 .Must(request =>
-                    !request.StartDay.HasValue ||
-                    !request.EndDay.HasValue ||
-                    request.StartDay.Value <= request.EndDay.Value)
+                    Helpers.MonthlyInventoryRange.IsValid(request.StartDay, request.EndDay))
                 .WithMessage(
-                    "startDay no puede superar endDay.");
+                    "startDay y endDay deben ser ambos NULL o formar un rango completo entre 1 y 31, con startDay menor o igual a endDay.")
+                .When(x => x.HasStartDay && x.HasEndDay);
         }
     }
 }

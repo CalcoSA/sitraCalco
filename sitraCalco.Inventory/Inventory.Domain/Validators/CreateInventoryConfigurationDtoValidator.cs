@@ -24,7 +24,7 @@ namespace Inventory.Domain.Validators
                 .Must(request =>
                     Helpers.MonthlyInventoryRange.IsValid(request.StartDay, request.EndDay))
                 .WithMessage(
-                    "startDay y endDay son obligatorios, deben estar entre 1 y 31 y startDay no puede superar endDay.");
+                    "startDay y endDay deben ser ambos NULL o formar un rango completo entre 1 y 31, con startDay menor o igual a endDay.");
         }
     }
 }

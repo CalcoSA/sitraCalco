@@ -104,10 +104,31 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
 
     [Theory]
     [InlineData("{\"inventoryConfigurationName\":\"Nueva\"}")]
+    [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"startDay\":null,\"endDay\":null}")]
+    [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"startDay\":null}")]
+    [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"endDay\":null}")]
+    public async Task Post_OmittedOrNullDays_PersistWithoutMonthlyRestriction(string json)
+    {
+        var response = Success(await _controller.Create(Read<CreateInventoryConfigurationDto>(json)));
+        var id = JsonSerializer.SerializeToElement(response.Result, Json).GetProperty("inventoryConfigurationId").GetInt64();
+        var saved = await _context.InventoryConfigurations.AsNoTracking().SingleAsync(x => x.inventory_configuration_id == id);
+        Assert.Equal("Nueva", saved.inventory_configuration_name);
+        Assert.Null(saved.start_day);
+        Assert.Null(saved.end_day);
+        Assert.Equal(3, await _context.InventoryConfigurations.CountAsync());
+    }
+
+    [Theory]
     [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"startDay\":15}")]
     [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"endDay\":30}")]
-    public async Task Post_MissingDays_AreInvalid(string json) =>
+    [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"startDay\":15,\"endDay\":null}")]
+    [InlineData("{\"inventoryConfigurationName\":\"Nueva\",\"startDay\":null,\"endDay\":30}")]
+    public async Task Post_IncompleteRange_DoesNotPersist(string json)
+    {
         Assert.IsType<BadRequestObjectResult>(await _controller.Create(Read<CreateInventoryConfigurationDto>(json)));
+        Assert.Equal(2, await _context.InventoryConfigurations.CountAsync());
+        Assert.Empty(_audit);
+    }
 
     [Theory]
     [InlineData("{\"startDate\":\"2026-01-01\"}")]
@@ -125,8 +146,9 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     [InlineData("{\"startDay\":20}", "Mensual", 20, 30)]
     [InlineData("{\"inventoryConfigurationName\":\" Nuevo nombre \"}", "Nuevo nombre", 15, 30)]
     [InlineData("{\"startDay\":1,\"endDay\":10}", "Mensual", 1, 10)]
+    [InlineData("{\"startDay\":null,\"endDay\":null}", "Mensual", null, null)]
     [InlineData("{}", "Mensual", 15, 30)]
-    public async Task Patch_MergesOnlySuppliedFields_AndReturnsAndAuditsPersistedValues(string json, string name, int start, int end)
+    public async Task Patch_MergesOnlySuppliedFields_AndReturnsAndAuditsPersistedValues(string json, string name, int? start, int? end)
     {
         var result = Assert.IsType<InventoryConfigurationDto>(Success(await _controller.UpdateInventoryConfiguration(1,
             Read<UpdateInventoryConfigurationDto>(json))).Result);
@@ -137,12 +159,46 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("{}", "Mensual", null, null)]
+    [InlineData("{\"inventoryConfigurationName\":\"Renombrada\"}", "Renombrada", null, null)]
+    [InlineData("{\"startDay\":null}", "Mensual", null, null)]
+    [InlineData("{\"endDay\":null}", "Mensual", null, null)]
+    [InlineData("{\"startDay\":null,\"endDay\":null}", "Mensual", null, null)]
+    [InlineData("{\"startDay\":1,\"endDay\":31}", "Mensual", 1, 31)]
+    public async Task Patch_FromUnrestrictedConfiguration_PreservesNullsOrSetsCompleteRange(string json, string name, int? start, int? end)
+    {
+        await SetMonthlyRange(null, null);
+        var result = Assert.IsType<InventoryConfigurationDto>(Success(await _controller.UpdateInventoryConfiguration(1,
+            Read<UpdateInventoryConfigurationDto>(json))).Result);
+        var saved = await _context.InventoryConfigurations.AsNoTracking().SingleAsync(x => x.inventory_configuration_id == 1);
+        Assert.Equal((name, start, end), (saved.inventory_configuration_name, saved.start_day, saved.end_day));
+        Assert.Equal((name, start, end), (result.InventoryConfigurationName, result.StartDay, result.EndDay));
+    }
+
+    [Theory]
+    [InlineData("{\"startDay\":15}")]
+    [InlineData("{\"endDay\":30}")]
+    [InlineData("{\"startDay\":15,\"endDay\":null}")]
+    [InlineData("{\"startDay\":null,\"endDay\":30}")]
+    public async Task Patch_FromUnrestrictedConfiguration_RejectsIncompleteRange(string json)
+    {
+        await SetMonthlyRange(null, null);
+        Assert.IsType<BadRequestObjectResult>(await _controller.UpdateInventoryConfiguration(1, Read<UpdateInventoryConfigurationDto>(json)));
+        var saved = await _context.InventoryConfigurations.AsNoTracking().SingleAsync(x => x.inventory_configuration_id == 1);
+        Assert.Null(saved.start_day);
+        Assert.Null(saved.end_day);
+        Assert.Empty(_audit);
+    }
+
+    [Theory]
     [InlineData("{\"startDay\":31}")]
     [InlineData("{\"endDay\":14}")]
     [InlineData("{\"startDay\":0}")]
     [InlineData("{\"endDay\":32}")]
     [InlineData("{\"startDay\":null}")]
     [InlineData("{\"endDay\":null}")]
+    [InlineData("{\"startDay\":15,\"endDay\":null}")]
+    [InlineData("{\"startDay\":null,\"endDay\":30}")]
     [InlineData("{\"inventoryConfigurationName\":null}")]
     [InlineData("{\"inventoryConfigurationName\":\" \"}")]
     [InlineData("{\"inventoryConfigurationName\":\"Sin asociaciones\"}")]
@@ -154,30 +210,46 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
         Assert.Empty(_audit);
     }
 
-    [Fact]
-    public async Task Patch_WriteFailure_DoesNotChangeRangeOrAudit()
+    [Theory]
+    [InlineData(1, 31)]
+    [InlineData(null, null)]
+    public async Task Patch_WriteFailure_DoesNotChangeRangeOrAudit(int? start, int? end)
     {
         _commands.FailUpdate = true;
-        var response = Assert.IsType<ObjectResult>(await _controller.UpdateInventoryConfiguration(1, new() { StartDay = 1, EndDay = 31 }));
+        var response = Assert.IsType<ObjectResult>(await _controller.UpdateInventoryConfiguration(1, new() { StartDay = start, EndDay = end }));
         Assert.Equal(500, response.StatusCode);
         var saved = await _context.InventoryConfigurations.AsNoTracking().SingleAsync(x => x.inventory_configuration_id == 1);
         Assert.Equal((15, 30), (saved.start_day, saved.end_day));
         Assert.Empty(_audit);
     }
 
-    [Fact]
-    public async Task Patch_ConcurrentChange_CannotOverwriteFieldsOrPersistAnInvalidMergedRange()
+    [Theory]
+    [InlineData("{\"startDay\":25}")]
+    [InlineData("{\"startDay\":null,\"endDay\":null}")]
+    public async Task Patch_ConcurrentChange_CannotOverwriteFieldsOrPersistAnInvalidMergedRange(string json)
     {
         _commands.BeforeUpdate = async () =>
         {
-            // Simular otro escritor después de leer 15–30 y antes de guardar startDay=25.
+            // Simular otro escritor después de leer 15–30 y antes de guardar el PATCH.
             using var command = _connection.CreateCommand();
             command.CommandText = "UPDATE sitracalco_inventory_configuration SET end_day = 20 WHERE inventory_configuration_id = 1";
             await command.ExecuteNonQueryAsync();
         };
-        Assert.IsType<BadRequestObjectResult>(await _controller.UpdateInventoryConfiguration(1, new() { StartDay = 25 }));
+        Assert.IsType<BadRequestObjectResult>(await _controller.UpdateInventoryConfiguration(1, Read<UpdateInventoryConfigurationDto>(json)));
         var saved = await _context.InventoryConfigurations.AsNoTracking().SingleAsync(x => x.inventory_configuration_id == 1);
         Assert.Equal((15, 20), (saved.start_day, saved.end_day));
+        Assert.Empty(_audit);
+    }
+
+    [Fact]
+    public async Task Patch_ConcurrentChangeFromNullRange_CannotBeOverwrittenByNameOnlyPatch()
+    {
+        await SetMonthlyRange(null, null);
+        _commands.BeforeUpdate = () => SetMonthlyRange(15, 30);
+        Assert.IsType<BadRequestObjectResult>(await _controller.UpdateInventoryConfiguration(1,
+            new() { InventoryConfigurationName = "Renombrada" }));
+        var saved = await _context.InventoryConfigurations.AsNoTracking().SingleAsync(x => x.inventory_configuration_id == 1);
+        Assert.Equal(("Mensual", 15, 30), (saved.inventory_configuration_name, saved.start_day, saved.end_day));
         Assert.Empty(_audit);
     }
 
@@ -215,6 +287,28 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
         var serialized = JsonSerializer.Serialize(detail, Json);
         Assert.DoesNotContain("startDate", serialized);
         Assert.DoesNotContain("endDate", serialized);
+    }
+
+    [Fact]
+    public async Task AdministrativeGets_SerializeNullMonthlyRange_AndKeepWeekdaysAndNumericRanges()
+    {
+        await SetMonthlyRange(null, null);
+        await AddDays();
+        var page = Assert.IsType<PagedDto<InventoryConfigurationListDto>>(Success(await _controller.GetInventoryConfigurations(1, 20)).Result);
+        var listed = page.Items.Single(x => x.InventoryConfigurationId == 1);
+        AssertNullMonthlyRange(listed);
+        var restricted = page.Items.Single(x => x.InventoryConfigurationId == 2);
+        Assert.Equal((1, 31), (restricted.StartDay, restricted.EndDay));
+        var detail = Assert.IsType<InventoryConfigurationByIdDto>(Success(await _controller.GetInventoryConfigurationById(1)).Result);
+        AssertNullMonthlyRange(detail);
+        var byCenter = Assert.IsType<SolutionCenterInventoryConfigurationsDto>(
+            Success(await _controller.GetInventoryConfigurationsBySolutionCenterId(1)).Result);
+        var configuration = Assert.Single(byCenter.Configurations);
+        AssertNullMonthlyRange(configuration);
+        Assert.Equal(new[] { "Lunes", "Domingo" }, detail.Days);
+        Assert.Equal(detail.Days, configuration.Days);
+        Assert.Equal(new long[] { 9, 10 }, listed.DaysOfWeek.Select(x => x.InventoryConfigurationDayId));
+        Assert.Equal(new long[] { 9, 10 }, configuration.DaysOfWeek.Select(x => x.InventoryConfigurationDayId));
     }
 
     [Theory]
@@ -255,11 +349,21 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     [InlineData("2028-02-29", 1, 31, true)]
     [InlineData("2026-04-30", 1, 31, true)]
     [InlineData("2026-01-31", 1, 31, true)]
-    public async Task Availability_UsesRecurringInclusiveMonthlyRangeAcrossAllConsumers(string date, int start, int end, bool available)
+    [InlineData("2026-02-01", null, null, true)]
+    [InlineData("2026-02-28", null, null, true)]
+    [InlineData("2028-02-29", null, null, true)]
+    [InlineData("2026-01-31", null, null, true)]
+    [InlineData("2026-02-15", 15, null, false)]
+    [InlineData("2026-02-15", null, 30, false)]
+    public async Task Availability_UsesRecurringInclusiveMonthlyRangeAcrossAllConsumers(string date, int? start, int? end, bool available)
     {
-        await _context.InventoryConfigurations.Where(x => x.inventory_configuration_id == 1)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.start_day, start).SetProperty(x => x.end_day, end));
+        await SetMonthlyRange(start, end);
         _clock.SetLocalDate(date);
+        await AssertAvailability(available);
+    }
+
+    private async Task AssertAvailability(bool available)
+    {
         var configurations = await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR");
         Assert.Equal(available ? 1 : 0, configurations.Data!.Count());
         var sections = await _application.GetAvailableInventorySections(1, 1, "ADMINISTRADOR");
@@ -268,6 +372,19 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
         var products = await _application.GetAvailableInventoryProducts(1, 1, 1, "ADMINISTRADOR", 1, 20);
         Assert.Equal(available, products.IsAvailable);
         Assert.Equal(available ? 1 : 0, products.Data.Items.Count());
+    }
+
+    [Theory]
+    [InlineData("2026-02-01", true)] // Domingo, fuera del rango mensual anterior.
+    [InlineData("2026-03-01", true)] // Sigue disponible en el siguiente mes.
+    [InlineData("2026-02-02", false)] // Lunes.
+    public async Task Availability_WithoutMonthlyRange_StillEnforcesWeekdaysAcrossAllConsumers(string date, bool available)
+    {
+        await _application.AddDays(1, new() { Days = new() { "Domingo" } });
+        Success(await _controller.UpdateInventoryConfiguration(1, new() { StartDay = null, EndDay = null }));
+        _clock.SetLocalDate(date);
+        await AssertAvailability(available);
+        Assert.Equal("Domingo", (await _context.InventoryConfigurationDays.SingleAsync()).day_of_week);
     }
 
     [Theory]
@@ -292,11 +409,16 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("center")]
-    [InlineData("sectionAssociation")]
-    [InlineData("configurationAssignment")]
-    public async Task Availability_PreservesActiveAssignmentFiltersAndCenterIsolation(string inactive)
+    [InlineData("center", false)]
+    [InlineData("sectionAssociation", false)]
+    [InlineData("configurationAssignment", false)]
+    [InlineData("center", true)]
+    [InlineData("sectionAssociation", true)]
+    [InlineData("configurationAssignment", true)]
+    public async Task Availability_PreservesActiveAssignmentFiltersAndCenterIsolation(string inactive, bool withoutMonthlyRange)
     {
+        if (withoutMonthlyRange)
+            await SetMonthlyRange(null, null);
         if (inactive == "center")
             await _context.SolutionCenters.Where(x => x.solution_center_id == 1).ExecuteUpdateAsync(s => s.SetProperty(x => x.is_active, false));
         if (inactive == "sectionAssociation")
@@ -347,6 +469,17 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
             new() { inventory_configuration_day_id = 10, inventory_configuration_id = 1, day_of_week = "Domingo" },
             new() { inventory_configuration_day_id = 9, inventory_configuration_id = 1, day_of_week = "Lunes" });
         await _context.SaveChangesAsync();
+    }
+
+    private Task<int> SetMonthlyRange(int? start, int? end) =>
+        _context.InventoryConfigurations.Where(x => x.inventory_configuration_id == 1)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.start_day, start).SetProperty(x => x.end_day, end));
+
+    private static void AssertNullMonthlyRange(object configuration)
+    {
+        var json = JsonSerializer.SerializeToElement(configuration, Json);
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("startDay").ValueKind);
+        Assert.Equal(JsonValueKind.Null, json.GetProperty("endDay").ValueKind);
     }
 
     private static T Read<T>(string json) => JsonSerializer.Deserialize<T>(json, Json)!;
