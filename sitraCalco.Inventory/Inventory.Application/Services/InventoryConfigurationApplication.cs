@@ -92,127 +92,29 @@ namespace Inventory.Application.Services
         }
 
         public async Task<AuditResult<int>> CreateAssignments(
-    long inventoryConfigurationId,
-    CreateInventoryConfigurationAssignmentsDto request)
+            long inventoryConfigurationId,
+            CreateInventoryConfigurationAssignmentsDto request)
         {
-            try
-            {
-                if (inventoryConfigurationId <= 0)
-                    return new(0);
+            if (inventoryConfigurationId <= 0)
+                return new(0, "El identificador de la configuración de inventario debe ser mayor a cero.");
+            if (request is null)
+                return new(0, "La información de las asignaciones no es válida.");
 
-                if (request is null)
-                    return new(0);
+            // Conservar las validaciones también para llamadas directas a Application.
+            var validation = new CreateInventoryConfigurationAssignmentsDtoValidator().Validate(request);
+            if (!validation.IsValid)
+                return new(0, string.Join(" ", validation.Errors.Select(error => error.ErrorMessage).Distinct()));
 
-                if (request.Assignments is null ||
-                    request.Assignments.Count == 0)
-                    return new(0);
-
-                // Validar que la configuración exista.
-                var configurationExists =
-                    await _inventoryConfigurationRepository
-                        .ConfigurationExists(
-                            inventoryConfigurationId);
-
-                if (!configurationExists)
-                    return new(0);
-
-                // Protección adicional por si Application
-                // fuera invocada sin pasar por FluentValidation.
-                var duplicatedAssignments =
-                    request.Assignments
-                        .GroupBy(assignment => new
-                        {
-                            assignment.SolutionCenterId,
-                            assignment.SectionId
-                        })
-                        .Any(group =>
-                            group.Count() > 1);
-
-                if (duplicatedAssignments)
-                    return new(0);
-
-                var assignmentsToCreate =
-                    new List<InventoryConfigurationAssignment>();
-
-                // IMPORTANTE:
-                // Primero validamos TODAS las asociaciones.
-                foreach (var assignment in request.Assignments)
+            // Las reglas de base de datos se comprueban en lote dentro de la misma
+            // transacción que guarda las asignaciones, después de tomar los bloqueos.
+            return await _inventoryConfigurationRepository.CreateAssignments(
+                request.Assignments.Select(assignment => new InventoryConfigurationAssignment
                 {
-                    if (assignment.SolutionCenterId <= 0 ||
-                        assignment.SectionId <= 0)
-                    {
-                        return new(0);
-                    }
-
-                    // Validar que exista la bodega
-                    // o punto de venta.
-                    var solutionCenterExists =
-                        await _inventoryConfigurationRepository
-                            .SolutionCenterExists(
-                                assignment.SolutionCenterId);
-
-                    if (!solutionCenterExists)
-                        return new(0);
-
-                    // Validar que exista la sección.
-                    var sectionExists =
-                        await _inventoryConfigurationRepository
-                            .SectionExists(
-                                assignment.SectionId);
-
-                    if (!sectionExists)
-                        return new(0);
-
-                    // Validar que la sección realmente
-                    // pertenezca a ese Solution Center.
-                    var sectionBelongs =
-                        await _inventoryConfigurationRepository
-                            .SectionBelongsToSolutionCenter(
-                                assignment.SolutionCenterId,
-                                assignment.SectionId);
-
-                    if (!sectionBelongs)
-                        return new(0);
-
-                    // Validar que esta combinación
-                    // aún no exista en la configuración.
-                    var assignmentExists =
-                        await _inventoryConfigurationRepository
-                            .AssignmentExists(
-                                inventoryConfigurationId,
-                                assignment.SolutionCenterId,
-                                assignment.SectionId);
-
-                    if (assignmentExists)
-                        return new(0);
-
-                    assignmentsToCreate.Add(
-                        new InventoryConfigurationAssignment
-                        {
-                            inventory_configuration_id =
-                                inventoryConfigurationId,
-
-                            solution_center_id =
-                                assignment.SolutionCenterId,
-
-                            section_id =
-                                assignment.SectionId,
-
-                            // Toda asociación nueva se crea activa.
-                            is_active = true
-                        });
-                }
-
-                // Solo llegamos aquí cuando TODAS
-                // las asociaciones pasaron las validaciones.
-                return await _inventoryConfigurationRepository
-                    .CreateAssignments(
-                        assignmentsToCreate);
-            }
-            catch
-            {
-                throw;
-            }
+                    inventory_configuration_id = inventoryConfigurationId,
+                    solution_center_id = assignment.SolutionCenterId,
+                    section_id = assignment.SectionId,
+                    is_active = true
+                }));
         }
 
         /// <summary>
@@ -895,6 +797,16 @@ namespace Inventory.Application.Services
             {
                 throw;
             }
+        }
+
+        public async Task<AuditResult<int>> DeleteAssignmentsBySolutionCenter(
+            long inventoryConfigurationId, long solutionCenterId)
+        {
+            if (inventoryConfigurationId <= 0 || solutionCenterId <= 0)
+                return new(0);
+
+            return await _inventoryConfigurationRepository.DeleteAssignmentsBySolutionCenter(
+                inventoryConfigurationId, solutionCenterId);
         }
     }
 }

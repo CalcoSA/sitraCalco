@@ -151,31 +151,100 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 assignments.ToList();
 
             if (assignmentsToCreate.Count == 0)
-                return new(0);
+                return new(0, "Debe enviar al menos una asignación.");
 
             await using var transaction = await _context.Database.BeginTransactionAsync();
             // Orden común para lotes que abarcan varias parejas. Tomar todos los
             // bloqueos antes de las lecturas evita snapshots anteriores a una espera.
             var pairs = assignmentsToCreate
                 .Select(item => (item.solution_center_id, item.section_id)).Distinct()
-                .OrderBy(pair => pair.solution_center_id).ThenBy(pair => pair.section_id);
-            foreach (var pair in pairs)
+                .OrderBy(pair => pair.solution_center_id).ThenBy(pair => pair.section_id).ToList();
+            var centerIds = pairs.Select(pair => pair.solution_center_id).Distinct().ToList();
+            var sectionIds = pairs.Select(pair => pair.section_id).Distinct().ToList();
+            List<SolutionCenterSection> centerSections;
+            if (_context.Database.IsMySql())
             {
-                if (await _context.LockSectionAssignment(pair.solution_center_id, pair.section_id) is not { is_active: true })
-                    return new(0);
+                // Equivalente en lote a LockSectionAssignment: mismas parejas,
+                // FOR UPDATE y parámetros, sin una consulta por centro/sección.
+                var predicates = pairs.Select((pair, index) =>
+                    $"(solution_center_id = {{{index * 2}}} AND section_id = {{{index * 2 + 1}}})");
+                var parameters = pairs.SelectMany(pair => new object[] { pair.solution_center_id, pair.section_id }).ToArray();
+                var sql = "SELECT solution_center_section_id, solution_center_id, section_id, is_active " +
+                    "FROM sitracalco_inventory_solution_center_section WHERE " + string.Join(" OR ", predicates) +
+                    " ORDER BY solution_center_id, section_id FOR UPDATE";
+                centerSections = await _context.SolutionCenterSections.FromSqlRaw(sql, parameters)
+                    .AsNoTracking().ToListAsync();
+            }
+            else if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+            {
+                centerSections = await _context.SolutionCenterSections.AsNoTracking()
+                    .Where(item => centerIds.Contains(item.solution_center_id) && sectionIds.Contains(item.section_id))
+                    .OrderBy(item => item.solution_center_id).ThenBy(item => item.section_id).ToListAsync();
+            }
+            else
+            {
+                throw new NotSupportedException("El proveedor no admite el bloqueo de secciones configurado.");
             }
 
-            foreach (var assignment in assignmentsToCreate)
-            {
-                if (!await SectionBelongsToSolutionCenter(assignment.solution_center_id, assignment.section_id) ||
-                    await AssignmentExists(assignment.inventory_configuration_id, assignment.solution_center_id, assignment.section_id))
-                    return new(0);
-            }
-
+            var configurationId = assignmentsToCreate[0].inventory_configuration_id;
             var configurationName = await _context.InventoryConfigurations
-                .Where(configuration => configuration.inventory_configuration_id == assignmentsToCreate[0].inventory_configuration_id)
+                .Where(configuration => configuration.inventory_configuration_id == configurationId)
                 .Select(configuration => configuration.inventory_configuration_name)
                 .SingleOrDefaultAsync();
+            if (configurationName is null)
+                return new(0, $"No se pudieron guardar las asignaciones. La configuración de inventario con ID {configurationId} no existe.");
+            var failurePrefix = $"No se pudieron guardar las asignaciones de la configuración {configurationName}.";
+
+            var centers = await _context.SolutionCenters.AsNoTracking()
+                .Where(center => centerIds.Contains(center.solution_center_id))
+                .Select(center => new { center.solution_center_id, center.solution_center_code, center.solution_center_name, center.solution_center_type_id })
+                .ToDictionaryAsync(center => center.solution_center_id);
+            var missingCenters = centerIds.Where(id => !centers.ContainsKey(id)).ToList();
+            if (missingCenters.Count > 0)
+                return new(0, $"{failurePrefix} No existen los centros de solución con ID: {string.Join(", ", missingCenters)}.");
+
+            var sections = await _context.Sections.AsNoTracking()
+                .Where(section => sectionIds.Contains(section.section_id))
+                .Select(section => new { section.section_id, section.section_name, section.solution_center_type_id })
+                .ToDictionaryAsync(section => section.section_id);
+            var missingSections = sectionIds.Where(id => !sections.ContainsKey(id)).ToList();
+            if (missingSections.Count > 0)
+                return new(0, $"{failurePrefix} No existen las secciones con ID: {string.Join(", ", missingSections)}.");
+
+            string CenterLabel(long id) => $"{centers[id].solution_center_code} - {centers[id].solution_center_name}";
+            string SectionLabel(long id) => $"{sections[id].section_name} (ID {id})";
+            string PairLabel((long solution_center_id, long section_id) pair) =>
+                $"{CenterLabel(pair.solution_center_id)} / sección {SectionLabel(pair.section_id)}";
+
+            var relations = centerSections.ToDictionary(item => (item.solution_center_id, item.section_id));
+            var unassigned = pairs.Where(pair => !relations.ContainsKey(pair)).ToList();
+            if (unassigned.Count > 0)
+                return new(0, $"{failurePrefix} Las siguientes secciones no están asociadas al centro indicado: {string.Join("; ", unassigned.Select(PairLabel))}.");
+            var inactive = pairs.Where(pair => !relations[pair].is_active).ToList();
+            if (inactive.Count > 0)
+                return new(0, $"{failurePrefix} Las siguientes relaciones centro–sección están inactivas: {string.Join("; ", inactive.Select(PairLabel))}.");
+            var incompatible = pairs.Where(pair => sections[pair.section_id].solution_center_type_id != centers[pair.solution_center_id].solution_center_type_id).ToList();
+            if (incompatible.Count > 0)
+                return new(0, $"{failurePrefix} Las siguientes secciones no corresponden al tipo del centro indicado: {string.Join("; ", incompatible.Select(PairLabel))}.");
+
+            // Consultar candidatas en lote y conservar únicamente las parejas exactas
+            // solicitadas. Una sección diferente no constituye un duplicado.
+            var existing = await _context.InventoryConfigurationAssignments.AsNoTracking()
+                .Where(item => item.inventory_configuration_id == configurationId &&
+                    centerIds.Contains(item.solution_center_id) && sectionIds.Contains(item.section_id))
+                .Select(item => new { item.solution_center_id, item.section_id, item.is_active }).ToListAsync();
+            var requestedPairs = pairs.ToHashSet();
+            var conflicts = existing.Where(item => requestedPairs.Contains((item.solution_center_id, item.section_id))).ToList();
+            if (conflicts.Count > 0)
+            {
+                var details = conflicts.GroupBy(item => item.section_id).OrderBy(group => group.Key)
+                    .Select(group => $"sección {SectionLabel(group.Key)}: {string.Join(", ", group.Select(item => item.solution_center_id).Distinct().OrderBy(id => centers[id].solution_center_code, StringComparer.Ordinal).Select(CenterLabel))}");
+                var message = $"No se pudieron guardar las asignaciones. Los siguientes puntos de venta o bodegas ya tienen asignada la configuración {configurationName}: {string.Join("; ", details)}. Desmarca estos centros y vuelve a intentarlo.";
+                if (conflicts.Any(item => !item.is_active))
+                    message += " Las asignaciones inactivas también están registradas; utiliza la opción de reactivación si corresponde.";
+                // Este diagnóstico no es un log de auditoría: no truncar la lista de conflictos.
+                return new(0, message);
+            }
 
             await _context
                 .InventoryConfigurationAssignments
@@ -680,6 +749,15 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     on assignment.section_id
                         equals section.section_id
 
+                    join centerSection in
+                        _context.SolutionCenterSections.AsNoTracking()
+
+                    on new { assignment.solution_center_id, assignment.section_id }
+                        equals new { centerSection.solution_center_id, centerSection.section_id }
+                        into centerSections
+
+                    from centerSection in centerSections.DefaultIfEmpty()
+
                     where assignment.solution_center_id ==
                           solutionCenterId
 
@@ -708,12 +786,17 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                             section.section_name,
 
                         SectionIsActive =
-                            section.is_active,
+                            (bool?)centerSection.is_active,
 
                         AssignmentIsActive =
                             assignment.is_active
                     }
                 ).ToListAsync();
+
+            // No ocultar asociaciones inconsistentes ni inventar su estado.
+            if (assignmentRows.Any(item => !item.SectionIsActive.HasValue))
+                throw new InvalidOperationException(
+                    $"Existe una configuración con una sección sin relación con el centro {solutionCenterId}.");
 
             // El centro existe pero todavía no tiene
             // configuraciones de inventario.
@@ -803,7 +886,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                                                 item.SectionName,
 
                                             SectionIsActive =
-                                                item.SectionIsActive,
+                                                item.SectionIsActive!.Value,
 
                                             IsActive =
                                                 item.AssignmentIsActive
@@ -1285,6 +1368,62 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
             return new(assignments.Count, description);
         }
+        /// <summary>
+        /// Retira todas las asignaciones de una configuración en un centro, sin tocar sus dependencias.
+        /// </summary>
+        public async Task<AuditResult<int>> DeleteAssignmentsBySolutionCenter(
+            long inventoryConfigurationId, long solutionCenterId)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(
+                _context.Database.IsMySql()
+                    ? System.Data.IsolationLevel.RepeatableRead
+                    : System.Data.IsolationLevel.Serializable);
+
+            if (_context.Database.IsMySql())
+            {
+                // Mismas filas y orden que LockSectionAssignment, antes de cualquier lectura.
+                // Bloquear el rango completo incluye secciones sin asignaciones actuales y
+                // coordina altas/reactivaciones; REPEATABLE READ protege también los huecos.
+                await _context.SolutionCenterSections.FromSqlInterpolated($"""
+                    SELECT solution_center_section_id, solution_center_id, section_id, is_active
+                    FROM sitracalco_inventory_solution_center_section
+                    WHERE solution_center_id = {solutionCenterId}
+                    ORDER BY section_id
+                    FOR UPDATE
+                    """).AsNoTracking().ToListAsync();
+            }
+            else if (_context.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite")
+            {
+                // La transacción de escritura inmediata serializa las pruebas aisladas.
+                await _context.SolutionCenterSections.AsNoTracking()
+                    .Where(item => item.solution_center_id == solutionCenterId)
+                    .OrderBy(item => item.section_id).ToListAsync();
+            }
+            else
+            {
+                throw new NotSupportedException("El proveedor no admite el bloqueo de secciones configurado.");
+            }
+
+            var configurationName = await _context.InventoryConfigurations.AsNoTracking()
+                .Where(item => item.inventory_configuration_id == inventoryConfigurationId)
+                .Select(item => item.inventory_configuration_name).SingleOrDefaultAsync();
+            var centerName = await _context.SolutionCenters.AsNoTracking()
+                .Where(item => item.solution_center_id == solutionCenterId)
+                .Select(item => item.solution_center_name).SingleOrDefaultAsync();
+
+            var deletedAssignments = await _context.InventoryConfigurationAssignments
+                .Where(item => item.inventory_configuration_id == inventoryConfigurationId &&
+                    item.solution_center_id == solutionCenterId)
+                .ExecuteDeleteAsync();
+
+            var description = deletedAssignments == 0 ? "" : AuditDescription.Format(
+                $"Se retiró la configuración de inventario {AuditDescription.Name(configurationName, inventoryConfigurationId)} del centro de solución {AuditDescription.Name(centerName, solutionCenterId)} y se eliminaron {deletedAssignments} asignaciones de secciones (activas o inactivas).");
+
+            await transaction.CommitAsync();
+
+            return new(deletedAssignments, description);
+        }
+
         private sealed record AssignmentAuditContext(
             InventoryConfigurationAssignment Assignment,
             string? ConfigurationName,
