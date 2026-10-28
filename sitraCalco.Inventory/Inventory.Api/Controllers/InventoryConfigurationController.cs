@@ -234,8 +234,7 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message =
-                            "La solicitud no es válida.",
+                        Message = string.Join(" ", validation.Errors.Select(error => error.ErrorMessage).Distinct()),
                         Result =
                             validation.Errors
                                 .Select(error =>
@@ -256,11 +255,9 @@ namespace Inventory.Api.Controllers
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message =
-                            "No se pudieron guardar las asignaciones. " +
-                            "Verifique que la configuración, las bodegas o puntos de venta y las secciones existan, " +
-                            "que cada sección pertenezca al centro indicado " +
-                            "y que las combinaciones no estén registradas.",
+                        Message = string.IsNullOrWhiteSpace(auditResult.Description)
+                            ? "No se pudieron guardar las asignaciones."
+                            : auditResult.Description,
                         Result = new { }
                     });
                 }
@@ -1807,6 +1804,79 @@ namespace Inventory.Api.Controllers
                     IsSuccess = false,
                     Message =
                         "Ocurrió un error al eliminar la sección de la configuración de inventario.",
+                    Result = new { }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Retira una configuración de un centro eliminando todas sus asignaciones de secciones.
+        /// </summary>
+        [HttpDelete("{inventoryConfigurationId:long}/solution-centers/{solutionCenterId:long}")]
+        public async Task<IActionResult> DeleteAssignmentsBySolutionCenter(
+            long inventoryConfigurationId, long solutionCenterId)
+        {
+            var userName = User.GetUserLogin();
+
+            try
+            {
+                if (inventoryConfigurationId <= 0 || solutionCenterId <= 0)
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "Los identificadores enviados deben ser mayores a cero.",
+                        Result = new { }
+                    });
+
+                if (string.IsNullOrWhiteSpace(userName))
+                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El token no contiene un userLogin válido.",
+                        Result = new { }
+                    });
+
+                var auditResult = await _inventoryConfigurationApplication.DeleteAssignmentsBySolutionCenter(
+                    inventoryConfigurationId, solutionCenterId);
+
+                if (auditResult.Value == 0)
+                    return NotFound(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "No se encontraron asignaciones de la configuración de inventario en el centro de solución indicado.",
+                        Result = new { }
+                    });
+
+                await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Eliminar",
+                    Module = "ConfiguracionInventarios",
+                    Description = auditResult.Description,
+                    UserName = userName.Trim()
+                });
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Configuración de inventario retirada del centro de solución correctamente.",
+                    Result = new
+                    {
+                        InventoryConfigurationId = inventoryConfigurationId,
+                        SolutionCenterId = solutionCenterId,
+                        DeletedAssignments = auditResult.Value
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error al retirar la configuración de inventario {InventoryConfigurationId} del centro de solución {SolutionCenterId}.",
+                    inventoryConfigurationId, solutionCenterId);
+
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al retirar la configuración de inventario del centro de solución.",
                     Result = new { }
                 });
             }

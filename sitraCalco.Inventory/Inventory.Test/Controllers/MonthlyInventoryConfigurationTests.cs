@@ -290,6 +290,67 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ByCenter_SectionIsActiveUsesCenterSectionPair_WithoutChangingAssignmentsOrQueryCount()
+    {
+        // Estados deliberadamente distintos de los globales y de las asignaciones.
+        _context.Sections.AddRange(
+            new() { section_id = 4, section_name = "Seccion 4", solution_center_type_id = 1, is_active = false },
+            new() { section_id = 5, section_name = "Seccion 5", solution_center_type_id = 1, is_active = true });
+        _context.SolutionCenterSections.AddRange(
+            new() { solution_center_id = 1, section_id = 4, is_active = true },
+            new() { solution_center_id = 1, section_id = 5, is_active = false },
+            new() { solution_center_id = 2, section_id = 4, is_active = false });
+        _context.InventoryConfigurationAssignments.AddRange(
+            new() { inventory_configuration_id = 1, solution_center_id = 1, section_id = 4, is_active = false },
+            new() { inventory_configuration_id = 1, solution_center_id = 1, section_id = 5, is_active = true },
+            new() { inventory_configuration_id = 1, solution_center_id = 2, section_id = 4, is_active = true });
+        await _context.SaveChangesAsync();
+        await AddDays();
+        _context.ChangeTracker.Clear();
+
+        _commands.Reads = 0;
+        var first = Assert.IsType<SolutionCenterInventoryConfigurationsDto>(
+            Success(await _controller.GetInventoryConfigurationsBySolutionCenterId(1)).Result);
+        Assert.Equal(3, _commands.Reads); // Centro + asociaciones + dias; sin N+1.
+        Assert.True(first.IsActive);
+        var configuration = Assert.Single(first.Configurations);
+        Assert.Equal((1L, 15, 30), (configuration.InventoryConfigurationId, configuration.StartDay, configuration.EndDay));
+        Assert.Equal(new[] { "Lunes", "Domingo" }, configuration.Days);
+        Assert.Equal(new long[] { 1, 4, 5 }, configuration.Sections.Select(x => x.SectionId));
+        var section4 = configuration.Sections.Single(x => x.SectionId == 4);
+        var section5 = configuration.Sections.Single(x => x.SectionId == 5);
+        Assert.True(section4.SectionIsActive);
+        Assert.False(section4.IsActive);
+        Assert.False(section5.SectionIsActive);
+        Assert.True(section5.IsActive);
+        Assert.True(JsonSerializer.SerializeToElement(section4, Json).GetProperty("sectionIsActive").GetBoolean());
+        Assert.False(JsonSerializer.SerializeToElement(section5, Json).GetProperty("sectionIsActive").GetBoolean());
+
+        _commands.Reads = 0;
+        var second = Assert.IsType<SolutionCenterInventoryConfigurationsDto>(
+            Success(await _controller.GetInventoryConfigurationsBySolutionCenterId(2)).Result);
+        Assert.Equal(3, _commands.Reads);
+        var otherCenterSection = Assert.Single(Assert.Single(second.Configurations).Sections);
+        Assert.Equal(4, otherCenterSection.SectionId);
+        Assert.False(otherCenterSection.SectionIsActive);
+        Assert.True(otherCenterSection.IsActive);
+
+        // La misma sección sigue relacionada con el centro 2, pero falta en el 1.
+        var missingRelation = await _context.SolutionCenterSections.SingleAsync(
+            x => x.solution_center_id == 1 && x.section_id == 4);
+        _context.SolutionCenterSections.Remove(missingRelation);
+        await _context.SaveChangesAsync();
+        _commands.Reads = 0;
+        var rejected = Assert.IsType<ObjectResult>(
+            await _controller.GetInventoryConfigurationsBySolutionCenterId(1));
+        Assert.Equal(500, rejected.StatusCode);
+        var error = Assert.IsType<ResponseApi>(rejected.Value);
+        Assert.False(error.IsSuccess);
+        Assert.Equal("{}", JsonSerializer.Serialize(error.Result, Json));
+        Assert.Equal(2, _commands.Reads);
+    }
+
+    [Fact]
     public async Task AdministrativeGets_SerializeNullMonthlyRange_AndKeepWeekdaysAndNumericRanges()
     {
         await SetMonthlyRange(null, null);

@@ -32,6 +32,7 @@ namespace Inventory.Domain.Interfaces
         Task<AuditResult<bool>> DeleteDay(long inventoryConfigurationId,string dayOfWeek);
         Task<AuditResult<bool>> DeleteAssignment(long inventoryConfigurationId,long solutionCenterId,long sectionId);
         Task<AuditResult<int>> DeleteAssignmentsBySection(long inventoryConfigurationId,long sectionId);
+        Task<AuditResult<int>> DeleteAssignmentsBySolutionCenter(long inventoryConfigurationId, long solutionCenterId);
 
 
     }
