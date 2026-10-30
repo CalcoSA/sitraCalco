@@ -22,6 +22,7 @@ namespace Inventory.Application
             services.AddScoped<IValidator<UpdateSectionDto>,UpdateSectionDtoValidator>();
             services.AddScoped<IInventoryConfigurationApplication,InventoryConfigurationApplication>();
             services.AddScoped<IInventoryApplication, InventoryApplication>();
+            services.AddScoped<IInventoryExportApplication, InventoryExportApplication>();
             services.AddScoped<IValidator<CreateInventoryConfigurationDto>,CreateInventoryConfigurationDtoValidator>();
             services.AddScoped<IValidator<CreateInventoryConfigurationAssignmentsDto>,CreateInventoryConfigurationAssignmentsDtoValidator>();
             services.AddScoped<IValidator<UpdateInventoryConfigurationAssignmentStatusDto>,UpdateInventoryConfigurationAssignmentStatusDtoValidator>();

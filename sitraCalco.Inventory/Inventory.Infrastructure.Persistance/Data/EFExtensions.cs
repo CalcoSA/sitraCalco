@@ -61,6 +61,8 @@ namespace Inventory.Infrastructure.Persistance.Data
             services.AddScoped<IPermissionRepository, PermissionRepository>();
             services.AddScoped<IInventoryConfigurationRepository,InventoryConfigurationRepository>();
             services.AddScoped<IInventoryRepository, InventoryRepository>();
+            services.AddScoped<IInventoryExportParameterRepository, InventoryExportParameterRepository>();
+            services.AddScoped<IInventoryExportRepository, InventoryExportRepository>();
 
             return services;
         }
