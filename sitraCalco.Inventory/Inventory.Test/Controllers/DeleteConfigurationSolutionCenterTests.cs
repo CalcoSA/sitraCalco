@@ -229,7 +229,7 @@ public class DeleteConfigurationSolutionCenterTests : IAsyncLifetime
     private TestContext NewContext(params IInterceptor[] interceptors) => new(new DbContextOptionsBuilder<SitraCalcoContext>()
         .UseSqlite(_connectionString).AddInterceptors(interceptors).Options);
     private static InventoryConfigurationApplication Application(SitraCalcoContext context) => new(
-        new InventoryConfigurationRepository(context), Mock.Of<IPermissionApplication>());
+        new InventoryConfigurationRepository(context), Mock.Of<IPermissionApplication>(), Mock.Of<Inventory.Domain.Interfaces.ISiesaRepository>());
     private async Task<string> OtherAssignments() => JsonSerializer.Serialize(await _context.InventoryConfigurationAssignments.AsNoTracking()
         .Where(x => x.inventory_configuration_id != 2 || x.solution_center_id != 3).OrderBy(x => x.inventory_configuration_assignment_id).ToListAsync());
     private async Task<string> RelatedRows() => JsonSerializer.Serialize(new

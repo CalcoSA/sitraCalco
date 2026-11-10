@@ -82,7 +82,7 @@ namespace Inventory.Test.Controllers
                 CountNumber = 1,
                 SavedItems = 1
             };
-            _applicationMock.Setup(x => x.Create(request, "juan.zapata", "ALMACEN"))
+            _applicationMock.Setup(x => x.Create(request, "juan.zapata", "ALMACEN", null))
                 .ReturnsAsync(new CreateInventoryResultDto
                 {
                     Status = InventorySaveStatus.Success,
@@ -100,7 +100,7 @@ namespace Inventory.Test.Controllers
             Assert.Equal(1, result.CountNumber);
             Assert.Equal(1, result.SavedItems);
             Assert.Equal(" empleado.inventario ", request.EnteredBy);
-            _applicationMock.Verify(x => x.Create(request, "juan.zapata", "ALMACEN"), Times.Once);
+            _applicationMock.Verify(x => x.Create(request, "juan.zapata", "ALMACEN", null), Times.Once);
             _applicationMock.VerifyNoOtherCalls();
             _loggerMock.VerifyNoOtherCalls();
         }
@@ -222,12 +222,12 @@ namespace Inventory.Test.Controllers
             InventorySaveStatus status, int statusCode, string message)
         {
             var request = CreateRequest();
-            _applicationMock.Setup(x => x.Create(request, "juan.zapata", "COSTOS"))
+            _applicationMock.Setup(x => x.Create(request, "juan.zapata", "COSTOS", null))
                 .ReturnsAsync(new CreateInventoryResultDto { Status = status, Message = message });
 
             AssertError(await _controller.Create(request), statusCode, message);
 
-            _applicationMock.Verify(x => x.Create(request, "juan.zapata", "COSTOS"), Times.Once);
+            _applicationMock.Verify(x => x.Create(request, "juan.zapata", "COSTOS", null), Times.Once);
             _applicationMock.VerifyNoOtherCalls();
             _loggerMock.VerifyNoOtherCalls();
         }
@@ -236,7 +236,7 @@ namespace Inventory.Test.Controllers
         public async Task Create_ShouldReturn500_WhenApplicationThrows()
         {
             var request = CreateRequest();
-            _applicationMock.Setup(x => x.Create(request, "juan.zapata", "COSTOS"))
+            _applicationMock.Setup(x => x.Create(request, "juan.zapata", "COSTOS", null))
                 .ThrowsAsync(new InvalidOperationException("Detalle interno de base de datos."));
 
             AssertError(await _controller.Create(request), 500,
@@ -268,7 +268,7 @@ namespace Inventory.Test.Controllers
 
         private void SetupCounts(InventoryCountsDto data, int? countNumber, string role)
         {
-            _applicationMock.Setup(x => x.GetCounts(ExecutionId, countNumber, role))
+            _applicationMock.Setup(x => x.GetCounts(ExecutionId, countNumber, role, null))
                 .ReturnsAsync(new InventoryCountsResultDto
                 {
                     Status = InventoryCountsStatus.Success,
@@ -323,12 +323,12 @@ namespace Inventory.Test.Controllers
         public async Task GetCounts_ShouldMapApplicationFailure(
             InventoryCountsStatus status, int httpStatus, string message)
         {
-            _applicationMock.Setup(x => x.GetCounts(ExecutionId, null, "COSTOS"))
+            _applicationMock.Setup(x => x.GetCounts(ExecutionId, null, "COSTOS", null))
                 .ReturnsAsync(new InventoryCountsResultDto { Status = status, Message = message });
 
             AssertError(await _controller.GetCounts(ExecutionId), httpStatus, message);
 
-            _applicationMock.Verify(x => x.GetCounts(ExecutionId, null, "COSTOS"), Times.Once);
+            _applicationMock.Verify(x => x.GetCounts(ExecutionId, null, "COSTOS", null), Times.Once);
             _applicationMock.VerifyNoOtherCalls();
             _loggerMock.VerifyNoOtherCalls();
         }
@@ -368,7 +368,7 @@ namespace Inventory.Test.Controllers
             Assert.Equal(3m, product.Counts[0].Open);
             Assert.Equal(2m, product.Counts[0].Closed);
             Assert.Equal(new decimal?[] { 15, 18, 21 }, product.Counts.Select(count => count.MultiplicationValue));
-            _applicationMock.Verify(x => x.GetCounts(ExecutionId, null, "FULL_ROLE"), Times.Once);
+            _applicationMock.Verify(x => x.GetCounts(ExecutionId, null, "FULL_ROLE", null), Times.Once);
             _applicationMock.VerifyNoOtherCalls();
         }
 
@@ -397,7 +397,7 @@ namespace Inventory.Test.Controllers
             var count = Assert.Single(Assert.Single(data.Items).Counts);
             Assert.Equal(2, count.CountNumber);
             Assert.Equal(12m, count.MultiplicationValue);
-            _applicationMock.Verify(x => x.GetCounts(ExecutionId, 2, role), Times.Once);
+            _applicationMock.Verify(x => x.GetCounts(ExecutionId, 2, role, null), Times.Once);
             _applicationMock.VerifyNoOtherCalls();
         }
 
@@ -415,7 +415,7 @@ namespace Inventory.Test.Controllers
             Assert.Same(data, response.Result);
             Assert.Equal(ExecutionId, data.InventoryExecutionId);
             Assert.Empty(data.Items);
-            _applicationMock.Verify(x => x.GetCounts(ExecutionId, 3, "COSTOS"), Times.Once);
+            _applicationMock.Verify(x => x.GetCounts(ExecutionId, 3, "COSTOS", null), Times.Once);
         }
 
         [Fact]
@@ -449,7 +449,7 @@ namespace Inventory.Test.Controllers
         [Fact]
         public async Task GetCounts_ShouldReturn500_WhenApplicationThrows()
         {
-            _applicationMock.Setup(x => x.GetCounts(ExecutionId, null, "COSTOS"))
+            _applicationMock.Setup(x => x.GetCounts(ExecutionId, null, "COSTOS", null))
                 .ThrowsAsync(new InvalidOperationException("Detalle interno de base de datos."));
 
             AssertError(await _controller.GetCounts(ExecutionId), 500,

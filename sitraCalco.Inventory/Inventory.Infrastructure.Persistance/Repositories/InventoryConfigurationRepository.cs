@@ -629,20 +629,22 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         }
 
         /// <summary>
-        /// Obtiene los productos del centro y sección con paginación y sin cargar datos administrativos.
+        /// Obtiene los productos del centro y sección y sin cargar datos administrativos.
         /// </summary>
-        public async Task<PagedDto<AvailableInventoryProductDto>> GetAvailableInventoryProducts(
-            long solutionCenterId,
-            long sectionId,
-            int page,
-            int take)
+        public async Task<List<AvailableInventoryProductDto>> GetAvailableInventoryProducts(long solutionCenterId, long sectionId)
         {
-            var query =
+            return await (
                 from association in _context.SolutionCenterProducts.AsNoTracking()
+
                 join product in _context.Products.AsNoTracking()
                     on association.product_id equals product.product_id
-                where association.solution_center_id == solutionCenterId &&
-                    association.section_id == sectionId
+
+                where association.solution_center_id == solutionCenterId
+                   && association.section_id == sectionId
+
+                orderby association.sort_order,
+                        association.solution_center_product_id
+
                 select new AvailableInventoryProductDto
                 {
                     SolutionCenterProductId = association.solution_center_product_id,
@@ -651,32 +653,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     Reference = product.reference,
                     ProductName = product.product_name,
                     UnitOfMeasure = product.unit_of_measure,
+                    F122Factor = product.f122_factor,
                     PlanId = product.plan_id,
                     SortOrder = association.sort_order
-                };
-
-            var total = await query.CountAsync();
-            var result = new PagedDto<AvailableInventoryProductDto>
-            {
-                Total = total,
-                Page = page,
-                Take = take,
-                Pages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)take)
-            };
-
-            // Evitar desbordamiento del offset y conservar los totales si se pide una página fuera de rango.
-            var offset = ((long)page - 1) * take;
-            if (offset >= total)
-                return result;
-
-            result.Items = await query
-                .OrderBy(product => product.SortOrder)
-                .ThenBy(product => product.SolutionCenterProductId)
-                .Skip((int)offset)
-                .Take(take)
-                .ToListAsync();
-
-            return result;
+                }
+            ).ToListAsync();
         }
 
         /// <summary>

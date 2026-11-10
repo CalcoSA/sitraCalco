@@ -94,7 +94,7 @@ public class AuditDescriptionTests
         {
             "assign" => (await repository.CreateAssignments(new[] { new InventoryConfigurationAssignment { inventory_configuration_id = 3, solution_center_id = 1, section_id = 2 } })).Description,
             "status" => (await repository.UpdateAssignmentStatus(3, 1, 2, true)).Description,
-            "days" => (await new InventoryConfigurationApplication(repository, Mock.Of<IPermissionApplication>())
+            "days" => (await new InventoryConfigurationApplication(repository, Mock.Of<IPermissionApplication>(), Mock.Of<Inventory.Domain.Interfaces.ISiesaRepository>())
                 .AddDays(3, new AddInventoryConfigurationDaysDto { Days = new() { " martes " } })).Description,
             "delete-day" => (await repository.DeleteDay(3, " lunes ")).Description,
             "delete" => (await repository.DeleteAssignment(3, 1, 2)).Description,

@@ -3,17 +3,12 @@
     public class ProductOptionDto
     {
         public long ProductId { get; set; }
-
         public string ProductName { get; set; } = null!;
-
         public string Reference { get; set; } = null!;
-
         public string UnitOfMeasure { get; set; } = null!;
-
+        public decimal? F122Factor { get; set; }
         public string? PlanId { get; set; }
-
         public string? image_path { get; set; }
-
         public string? ImageUrl { get; set; }
     }
 }

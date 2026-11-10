@@ -46,7 +46,7 @@ namespace Inventory.Test.Application
         private InventoryConfigurationController ConfigurationController(string role)
         {
             return new InventoryConfigurationController(
-                new InventoryConfigurationApplication(_configurations.Object, _permissionApplication),
+                new InventoryConfigurationApplication(_configurations.Object, _permissionApplication, Mock.Of<ISiesaRepository>()),
                 Mock.Of<ILogApplication>(),
                 Mock.Of<IValidator<CreateInventoryConfigurationDto>>(),
                 Mock.Of<IValidator<CreateInventoryConfigurationAssignmentsDto>>(),

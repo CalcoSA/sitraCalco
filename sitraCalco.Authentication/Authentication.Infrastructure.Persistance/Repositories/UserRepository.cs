@@ -80,6 +80,24 @@ namespace Authentication.Infrastructure.Persistance.Repositories
                 .FirstOrDefaultAsync(x => x.IdUser == idUser);
         }
 
+        /// <summary>
+        /// Obtiene el código del único punto de venta
+        /// asignado a un usuario con rol PDV.
+        /// </summary>
+        public async Task<string?> GetAssignedSolutionCenterCode(int idUser)
+        {
+            if (idUser <= 0)
+                return null;
+
+            var solutionCenterCode = await _context.Userroles
+                .AsNoTracking()
+                .Where(x => x.IdUser == idUser && x.IdRoleNavigation.RoleCode == Role.PointOfSaleCode)
+                .Select(x => x.SolutionCenter != null ? x.SolutionCenter.SolutionCenterCode : null)
+                .SingleOrDefaultAsync();
+
+            return string.IsNullOrWhiteSpace(solutionCenterCode) ? null : solutionCenterCode.Trim().ToUpperInvariant();
+        }
+
         public async Task<User?> GetAdministrativeUserById(int idUser)
         {
             return await _context.Users.AsNoTracking()

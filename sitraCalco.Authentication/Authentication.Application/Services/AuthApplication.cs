@@ -178,7 +178,6 @@ namespace Authentication.Application.Services
 
         private async Task<(UserDto User, List<MenuOptionDto> MenuOptions)> GetAuthorizedUser(User? localUser)
         {
-
             if (localUser is null)
                 throw new UnauthorizedAccessException("El usuario no tiene permisos asignados en el aplicativo.");
 
@@ -186,6 +185,18 @@ namespace Authentication.Application.Services
                 throw new UnauthorizedAccessException("El usuario está inactivo en el aplicativo.");
 
             var user = _mapper.Map<UserDto>(localUser);
+
+            user.SolutionCenterCode = null;
+
+            if (string.Equals(user.NameRole, "PDV", StringComparison.OrdinalIgnoreCase))
+            {
+                user.SolutionCenterCode = await _userRepository.GetAssignedSolutionCenterCode(user.IdUser);
+
+                if (string.IsNullOrWhiteSpace(user.SolutionCenterCode))
+                {
+                    throw new UnauthorizedAccessException("El usuario PDV no tiene un punto de venta asignado.");
+                }
+            }
 
             var menuOptions = (await _menuOptionApplication.GetByRole(user.IdRole)).ToList();
 

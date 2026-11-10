@@ -704,7 +704,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
                 {
                     IsValidRole = true,
@@ -726,7 +726,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "ALMACEN");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryConfigurations(2, "ALMACEN"))
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "ALMACEN", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
                 {
                     IsValidRole = isValidRole,
@@ -749,7 +749,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
                 {
                     IsValidRole = true,
@@ -778,7 +778,7 @@ namespace Inventory.Test.Controllers
                     InventoryConfigurationName = $"Inventario {id}"
                 }).ToList();
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
                 {
                     IsValidRole = true,
@@ -809,7 +809,7 @@ namespace Inventory.Test.Controllers
             _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
                 """{"role":"SUPLANTADO","userLogin":"otro","fecha":"2099-01-01","dia":"Lunes"}"""));
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryConfigurations(2, role))
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, role, It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventoryConfigurationsResultDto
                 {
                     IsValidRole = true,
@@ -820,7 +820,7 @@ namespace Inventory.Test.Controllers
             Assert.IsType<OkObjectResult>(await _controller.GetAvailableInventoryConfigurations(2));
 
             _inventoryConfigurationApplicationMock.Verify(
-                x => x.GetAvailableInventoryConfigurations(2, role), Times.Once);
+                x => x.GetAvailableInventoryConfigurations(2, role, It.IsAny<string?>()), Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
         }
 
@@ -829,7 +829,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS"))
+                .Setup(x => x.GetAvailableInventoryConfigurations(2, "COSTOS", It.IsAny<string?>()))
                 .ThrowsAsync(new InvalidOperationException("Detalle interno del error."));
 
             var result = await _controller.GetAvailableInventoryConfigurations(2);
@@ -906,7 +906,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventorySectionsResultDto
                 {
                     IsValidRole = true,
@@ -926,7 +926,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventorySectionsResultDto
                 {
                     IsValidRole = true,
@@ -949,7 +949,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "ALMACEN");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "ALMACEN"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "ALMACEN", It.IsAny<string?>()))
                 .ReturnsAsync(new AvailableInventorySectionsResultDto
                 {
                     IsValidRole = isValidRole,
@@ -974,7 +974,7 @@ namespace Inventory.Test.Controllers
             var applicationResult = CreateAvailableSectionsResult();
             applicationResult.IsAvailable = false;
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
             var result = await _controller.GetAvailableInventorySections(2, 1);
@@ -990,7 +990,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(CreateAvailableSectionsResult());
 
             var result = await _controller.GetAvailableInventorySections(2, 1);
@@ -1015,7 +1015,7 @@ namespace Inventory.Test.Controllers
                     SectionName = $"Sección {id}"
                 }).ToList();
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
             var result = await _controller.GetAvailableInventorySections(2, 1);
@@ -1032,7 +1032,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity(role: "COSTOS");
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS"))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, "COSTOS", It.IsAny<string?>()))
                 .ThrowsAsync(new InvalidOperationException("Detalle interno del error."));
 
             var result = await _controller.GetAvailableInventorySections(2, 1);
@@ -1059,21 +1059,21 @@ namespace Inventory.Test.Controllers
             _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
                 """{"role":"SUPLANTADO","userLogin":"otro","sectionId":99,"fecha":"2099-01-01","dia":"Lunes"}"""));
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventorySections(2, 1, role))
+                .Setup(x => x.GetAvailableInventorySections(2, 1, role, It.IsAny<string?>()))
                 .ReturnsAsync(CreateAvailableSectionsResult());
 
             Assert.IsType<OkObjectResult>(await _controller.GetAvailableInventorySections(2, 1));
 
             _inventoryConfigurationApplicationMock.Verify(
-                x => x.GetAvailableInventorySections(2, 1, role), Times.Once);
+                x => x.GetAvailableInventorySections(2, 1, role, It.IsAny<string?>()), Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
         }
 
         // =========================================================
-        // AVAILABLE INVENTORY PRODUCTS
+        // AVAILABLE INVENTORY PRODUCTS (SIN PAGINACION)
         // =========================================================
 
-        private static AvailableInventoryProductsResultDto CreateAvailableProductsResult(int page = 1, int take = 20)
+        private static AvailableInventoryProductsResultDto CreateAvailableProductsResult()
         {
             return new AvailableInventoryProductsResultDto
             {
@@ -1084,23 +1084,19 @@ namespace Inventory.Test.Controllers
                 ConfigurationExists = true,
                 IsAvailable = true,
                 IsSectionAvailable = true,
-                Data = new PagedDto<AvailableInventoryProductDto>
-                {
-                    Page = page,
-                    Take = take
-                }
+                Data = new List<AvailableInventoryProductDto>()
             };
         }
 
         [Theory]
-        [InlineData(0, 1, 2, "El identificador de la bodega o punto de venta debe ser mayor a cero.")]
-        [InlineData(-1, 1, 2, "El identificador de la bodega o punto de venta debe ser mayor a cero.")]
-        [InlineData(2, 0, 2, "El identificador de la configuración de inventario debe ser mayor a cero.")]
-        [InlineData(2, -1, 2, "El identificador de la configuración de inventario debe ser mayor a cero.")]
-        [InlineData(2, 1, 0, "El identificador de la sección debe ser mayor a cero.")]
-        [InlineData(2, 1, -1, "El identificador de la sección debe ser mayor a cero.")]
+        [InlineData(0, 1, 2)]
+        [InlineData(-1, 1, 2)]
+        [InlineData(2, 0, 2)]
+        [InlineData(2, -1, 2)]
+        [InlineData(2, 1, 0)]
+        [InlineData(2, 1, -1)]
         public async Task GetAvailableInventoryProducts_ShouldReturn400_WhenAnyIdIsInvalid(
-            long solutionCenterId, long inventoryConfigurationId, long sectionId, string expectedMessage)
+            long solutionCenterId, long inventoryConfigurationId, long sectionId)
         {
             _controller.WithIdentity();
 
@@ -1109,26 +1105,45 @@ namespace Inventory.Test.Controllers
 
             var response = Assert.IsType<ResponseApi>(Assert.IsType<BadRequestObjectResult>(result).Value);
             Assert.False(response.IsSuccess);
-            Assert.Equal(expectedMessage, response.Message);
+            Assert.Equal("Los identificadores deben ser mayores a cero.", response.Message);
             Assert.Empty(response.Result.GetType().GetProperties());
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
         }
 
-        [Theory]
-        [InlineData(0, 20)]
-        [InlineData(-1, 20)]
-        [InlineData(1, 0)]
-        [InlineData(1, -1)]
-        public async Task GetAvailableInventoryProducts_ShouldReturn400_WhenPaginationIsInvalid(int page, int take)
+        // El endpoint dejó de aceptar paginación: un page/take ajeno
+        // a la firma pública no debe restringir los elementos devueltos.
+        [Fact]
+        public async Task GetAvailableInventoryProducts_ShouldReturnList_IgnoringLegacyPaginationQuery()
         {
             _controller.WithIdentity();
+            _controller.Request.QueryString = new QueryString("?page=2&take=1");
+            var applicationResult = CreateAvailableProductsResult();
+            applicationResult.Data = Enumerable.Range(1, 5)
+                .Select(id => new AvailableInventoryProductDto
+                {
+                    SolutionCenterProductId = id,
+                    ProductId = id,
+                    Reference = $"REF{id}",
+                    ProductName = $"Producto {id}",
+                    UnitOfMeasure = "UNID",
+                    SortOrder = id
+                }).ToList();
 
-            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2, page, take);
+            _inventoryConfigurationApplicationMock
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
+                .ReturnsAsync(applicationResult);
 
-            var response = Assert.IsType<ResponseApi>(Assert.IsType<BadRequestObjectResult>(result).Value);
-            Assert.False(response.IsSuccess);
-            Assert.Equal("Page y Take deben ser mayores a cero.", response.Message);
-            Assert.Empty(response.Result.GetType().GetProperties());
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
+            var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
+            var products = Assert.IsType<List<AvailableInventoryProductDto>>(response.Result);
+
+            Assert.True(response.IsSuccess);
+            Assert.Equal(5, products.Count);
+            Assert.Same(applicationResult.Data, products);
+            _inventoryConfigurationApplicationMock.Verify(
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", It.IsAny<string?>()),
+                Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
         }
 
@@ -1184,9 +1199,9 @@ namespace Inventory.Test.Controllers
         }
 
         [Theory]
-        [InlineData(false, false, false, "El rol del token no tiene permisos para esta consulta.")]
-        [InlineData(true, false, false, "El rol no tiene permisos para consultar este centro.")]
-        [InlineData(true, true, false, "El rol no tiene permisos para consultar el detalle del inventario.")]
+        [InlineData(false, false, false, "El rol no tiene permisos para esta consulta.")]
+        [InlineData(true, false, false, "No tiene permisos para consultar este centro.")]
+        [InlineData(true, true, false, "No tiene permisos para consultar los productos.")]
         public async Task GetAvailableInventoryProducts_ShouldReturn403_WhenApplicationDeniesAccess(
             bool isValidRole, bool isAllowed, bool hasDetailPermission, string expectedMessage)
         {
@@ -1196,7 +1211,8 @@ namespace Inventory.Test.Controllers
             applicationResult.IsAllowed = isAllowed;
             applicationResult.HasDetailPermission = hasDetailPermission;
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
             var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
@@ -1212,8 +1228,8 @@ namespace Inventory.Test.Controllers
         [Theory]
         [InlineData(false, false, false, false, "La bodega o punto de venta no existe.")]
         [InlineData(true, false, false, false, "La configuración de inventario no existe.")]
-        [InlineData(true, true, false, false, "La configuración de inventario no está disponible para este centro.")]
-        [InlineData(true, true, true, false, "La sección no está disponible para esta configuración y centro.")]
+        [InlineData(true, true, false, false, "La configuración no está disponible para este centro.")]
+        [InlineData(true, true, true, false, "La sección no está disponible para este inventario.")]
         public async Task GetAvailableInventoryProducts_ShouldReturn404_WhenApplicationReportsUnavailableChain(
             bool solutionCenterExists, bool configurationExists, bool isAvailable, bool isSectionAvailable,
             string expectedMessage)
@@ -1225,7 +1241,8 @@ namespace Inventory.Test.Controllers
             applicationResult.IsAvailable = isAvailable;
             applicationResult.IsSectionAvailable = isSectionAvailable;
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
             var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
@@ -1237,12 +1254,13 @@ namespace Inventory.Test.Controllers
         }
 
         [Fact]
-        public async Task GetAvailableInventoryProducts_ShouldReturnEmptyPageAndUseDefaults_WhenPaginationIsOmitted()
+        public async Task GetAvailableInventoryProducts_ShouldReturnEmptyList_WhenNoProductsExist()
         {
             _controller.WithIdentity();
             var applicationResult = CreateAvailableProductsResult();
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
             var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
@@ -1250,15 +1268,11 @@ namespace Inventory.Test.Controllers
             var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
             Assert.False(response.IsSuccess);
             Assert.Equal("No hay productos disponibles para esta sección.", response.Message);
-            var page = Assert.IsType<PagedDto<AvailableInventoryProductDto>>(response.Result);
-            Assert.Same(applicationResult.Data, page);
-            Assert.Empty(page.Items);
-            Assert.Equal(0, page.Total);
-            Assert.Equal(1, page.Page);
-            Assert.Equal(20, page.Take);
-            Assert.Equal(0, page.Pages);
+            var products = Assert.IsType<List<AvailableInventoryProductDto>>(response.Result);
+            Assert.Same(applicationResult.Data, products);
+            Assert.Empty(products);
             _inventoryConfigurationApplicationMock.Verify(
-                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20), Times.Once);
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", It.IsAny<string?>()), Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
             _logApplicationMock.VerifyNoOtherCalls();
         }
@@ -1266,12 +1280,11 @@ namespace Inventory.Test.Controllers
         [Theory]
         [InlineData(1)]
         [InlineData(3)]
-        public async Task GetAvailableInventoryProducts_ShouldReturnApplicationPageAndForwardPagination_WhenProductsExist(
-            int count)
+        public async Task GetAvailableInventoryProducts_ShouldReturnFullProductList_WhenProductsExist(int count)
         {
             _controller.WithIdentity();
-            var applicationResult = CreateAvailableProductsResult(page: 2, take: 3);
-            applicationResult.Data.Items = Enumerable.Range(1, count)
+            var applicationResult = CreateAvailableProductsResult();
+            applicationResult.Data = Enumerable.Range(1, count)
                 .Select(id => new AvailableInventoryProductDto
                 {
                     SolutionCenterProductId = id,
@@ -1283,26 +1296,21 @@ namespace Inventory.Test.Controllers
                     PlanId = "FAC",
                     SortOrder = id
                 }).ToList();
-            applicationResult.Data.Total = 3 + count;
-            applicationResult.Data.Pages = 2;
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 2, 3))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
-            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2, page: 2, take: 3);
+            var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
 
             var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
             Assert.True(response.IsSuccess);
             Assert.Equal("Productos de la sección consultados correctamente.", response.Message);
-            var page = Assert.IsType<PagedDto<AvailableInventoryProductDto>>(response.Result);
-            Assert.Same(applicationResult.Data, page);
-            Assert.Equal(count, page.Items.Count());
-            Assert.Equal(3 + count, page.Total);
-            Assert.Equal(2, page.Page);
-            Assert.Equal(3, page.Take);
-            Assert.Equal(2, page.Pages);
+            var products = Assert.IsType<List<AvailableInventoryProductDto>>(response.Result);
+            Assert.Same(applicationResult.Data, products);
+            Assert.Equal(count, products.Count);
             _inventoryConfigurationApplicationMock.Verify(
-                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 2, 3), Times.Once);
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", It.IsAny<string?>()), Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
             _logApplicationMock.VerifyNoOtherCalls();
         }
@@ -1317,7 +1325,7 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity();
             var applicationResult = CreateAvailableProductsResult();
-            applicationResult.Data.Items = new List<AvailableInventoryProductDto>
+            applicationResult.Data = new List<AvailableInventoryProductDto>
             {
                 new AvailableInventoryProductDto
                 {
@@ -1332,10 +1340,9 @@ namespace Inventory.Test.Controllers
                     SortOrder = 1
                 }
             };
-            applicationResult.Data.Total = 1;
-            applicationResult.Data.Pages = 1;
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
                 .ReturnsAsync(applicationResult);
 
             var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);
@@ -1343,9 +1350,9 @@ namespace Inventory.Test.Controllers
             var response = Assert.IsType<ResponseApi>(Assert.IsType<OkObjectResult>(result).Value);
             Assert.True(response.IsSuccess);
             Assert.Equal("Productos de la sección consultados correctamente.", response.Message);
-            var page = Assert.IsType<PagedDto<AvailableInventoryProductDto>>(response.Result);
-            Assert.Same(applicationResult.Data, page);
-            var product = Assert.Single(page.Items);
+            var products = Assert.IsType<List<AvailableInventoryProductDto>>(response.Result);
+            Assert.Same(applicationResult.Data, products);
+            var product = Assert.Single(products);
             Assert.Equal(imagePath, product.ImagePath);
             Assert.Equal(imageUrl, product.ImageUrl);
             Assert.Equal(3, product.SolutionCenterProductId);
@@ -1355,12 +1362,8 @@ namespace Inventory.Test.Controllers
             Assert.Equal("Mililitros", product.UnitOfMeasure);
             Assert.Equal("FAC", product.PlanId);
             Assert.Equal(1, product.SortOrder);
-            Assert.Equal(1, page.Total);
-            Assert.Equal(1, page.Page);
-            Assert.Equal(20, page.Take);
-            Assert.Equal(1, page.Pages);
             _inventoryConfigurationApplicationMock.Verify(
-                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20), Times.Once);
+                x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", It.IsAny<string?>()), Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
             _logApplicationMock.VerifyNoOtherCalls();
         }
@@ -1380,13 +1383,14 @@ namespace Inventory.Test.Controllers
             _controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(
                 """{"role":"SUPLANTADO","nameRole":"SUPLANTADO","userLogin":"otro","solutionCenterId":99,"inventoryConfigurationId":99,"sectionId":99,"fecha":"2099-01-01","dia":"Lunes"}"""));
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, role, 1, 20))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, role, It.IsAny<string?>()))
                 .ReturnsAsync(CreateAvailableProductsResult());
 
             Assert.IsType<OkObjectResult>(await _controller.GetAvailableInventoryProducts(2, 1, 2));
 
             _inventoryConfigurationApplicationMock.Verify(
-                x => x.GetAvailableInventoryProducts(2, 1, 2, role, 1, 20), Times.Once);
+                x => x.GetAvailableInventoryProducts(2, 1, 2, role, It.IsAny<string?>()), Times.Once);
             _inventoryConfigurationApplicationMock.VerifyNoOtherCalls();
         }
 
@@ -1395,7 +1399,8 @@ namespace Inventory.Test.Controllers
         {
             _controller.WithIdentity();
             _inventoryConfigurationApplicationMock
-                .Setup(x => x.GetAvailableInventoryProducts(2, 1, 2, "COSTOS", 1, 20))
+                .Setup(x => x.GetAvailableInventoryProducts(
+                    2, 1, 2, "COSTOS", It.IsAny<string?>()))
                 .ThrowsAsync(new InvalidOperationException("Detalle interno del error."));
 
             var result = await _controller.GetAvailableInventoryProducts(2, 1, 2);

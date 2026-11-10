@@ -12,6 +12,9 @@ namespace Inventory.Domain.Dtos
         public long SectionId { get; set; }
         public string SectionName { get; set; } = null!;
         public string CountMode { get; set; } = null!;
+        public List<int> SavedCountNumbers { get; set; } = new();
+        public int? NextCountNumber { get; set; }
+        public bool CanViewFullDetail { get; set; }
         public List<InventoryProductCountsDto> Items { get; set; } = new();
     }
 }

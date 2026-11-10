@@ -10,27 +10,25 @@ using Inventory.Domain.Validators;
 
 namespace Inventory.Application.Services
 {
-    public class InventoryConfigurationApplication
-        : IInventoryConfigurationApplication
+    public class InventoryConfigurationApplication : IInventoryConfigurationApplication
     {
-        private readonly IInventoryConfigurationRepository
-            _inventoryConfigurationRepository;
+        private readonly IInventoryConfigurationRepository _inventoryConfigurationRepository;
         private readonly IPermissionApplication _permissionApplication;
+        private readonly ISiesaRepository _siesaRepository;
         private readonly IStorageService? _storageService;
         private readonly GoogleCloudStorageOptions? _storageOptions;
         private readonly TimeProvider _timeProvider;
 
-        public InventoryConfigurationApplication(
-            IInventoryConfigurationRepository
-                inventoryConfigurationRepository,
+        public InventoryConfigurationApplication(IInventoryConfigurationRepository inventoryConfigurationRepository,
             IPermissionApplication permissionApplication,
+            ISiesaRepository siesaRepository,
             IStorageService? storageService = null,
             IOptions<GoogleCloudStorageOptions>? storageOptions = null,
             TimeProvider? timeProvider = null)
         {
-            _inventoryConfigurationRepository =
-                inventoryConfigurationRepository;
+            _inventoryConfigurationRepository = inventoryConfigurationRepository;
             _permissionApplication = permissionApplication;
+            _siesaRepository = siesaRepository;
             _storageService = storageService;
             _storageOptions = storageOptions?.Value;
             _timeProvider = timeProvider ?? TimeProvider.System;
@@ -199,45 +197,56 @@ namespace Inventory.Application.Services
         /// <summary>
         /// Obtiene las configuraciones disponibles hoy para realizar inventario en el centro.
         /// </summary>
-        public async Task<AvailableInventoryConfigurationsResultDto> GetAvailableInventoryConfigurations(
-            long solutionCenterId,
-            string role)
+        public async Task<AvailableInventoryConfigurationsResultDto> GetAvailableInventoryConfigurations(long solutionCenterId, string role, string? userSolutionCenterCode)
         {
             var result = new AvailableInventoryConfigurationsResultDto();
 
             if (solutionCenterId <= 0 || string.IsNullOrWhiteSpace(role))
                 return result;
 
-            var canViewAll = await _permissionApplication.HasPermission(
-                PermissionKeys.ViewAllSolutionCenters, role);
-            var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(
-                PermissionKeys.ViewWarehousesOnly, role);
+            var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+            var canViewWarehouses = await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+            var canViewAssigned = await _permissionApplication.HasPermission(PermissionKeys.ViewAssignedPointOfSales, role);
 
-            if (!canViewAll && !canViewWarehouses)
+            if (!canViewAll && !canViewWarehouses && !canViewAssigned)
                 return result;
 
             result.IsValidRole = true;
 
-            var solutionCenter = await _inventoryConfigurationRepository.GetSolutionCenterById(solutionCenterId);
-            if (solutionCenter is null)
+            var center = await _inventoryConfigurationRepository.GetSolutionCenterById(solutionCenterId);
+
+            if (center is null)
             {
                 result.IsAllowed = true;
                 return result;
             }
 
             const long warehouseTypeId = 1;
-            if (!canViewAll && solutionCenter.solution_center_type_id != warehouseTypeId)
+            const long pointOfSaleTypeId = 2;
+
+            var allowed =
+                canViewAll ||
+                (canViewWarehouses &&
+                 center.solution_center_type_id == warehouseTypeId) ||
+                (canViewAssigned &&
+                 center.solution_center_type_id == pointOfSaleTypeId &&
+                 !string.IsNullOrWhiteSpace(userSolutionCenterCode) &&
+                 string.Equals(
+                     center.solution_center_code,
+                     userSolutionCenterCode.Trim(),
+                     StringComparison.OrdinalIgnoreCase));
+
+            if (!allowed)
                 return result;
 
             result.IsAllowed = true;
             result.Data = new List<AvailableInventoryConfigurationDto>();
 
-            if (!solutionCenter.is_active)
+            if (!center.is_active)
                 return result;
 
-            // Mantener la convención de hora local del servidor utilizada por Inventory.
-            // Una sola lectura evita inconsistencias entre fecha y día al cruzar medianoche.
             var today = _timeProvider.GetLocalNow().Date;
+
             var currentDay = today.DayOfWeek switch
             {
                 DayOfWeek.Monday => "Lunes",
@@ -247,21 +256,34 @@ namespace Inventory.Application.Services
                 DayOfWeek.Friday => "Viernes",
                 DayOfWeek.Saturday => "Sabado",
                 DayOfWeek.Sunday => "Domingo",
-                _ => throw new InvalidOperationException("El día actual no es válido.")
+                _ => throw new InvalidOperationException("Día inválido.")
             };
 
-            var configurations = await _inventoryConfigurationRepository.GetAvailabilityCandidates(solutionCenterId);
+            var configurations =
+                await _inventoryConfigurationRepository
+                    .GetAvailabilityCandidates(solutionCenterId);
 
             result.Data = configurations
                 .Where(configuration =>
-                    MonthlyInventoryRange.Includes(today, configuration.StartDay, configuration.EndDay) &&
-                    (configuration.Days.Count == 0 || configuration.Days.Any(day =>
-                        string.Equals(NormalizeDay(day), currentDay, StringComparison.OrdinalIgnoreCase))))
-                .OrderBy(configuration => configuration.InventoryConfigurationName)
+                    MonthlyInventoryRange.Includes(
+                        today,
+                        configuration.StartDay,
+                        configuration.EndDay) &&
+                    (configuration.Days.Count == 0 ||
+                     configuration.Days.Any(day =>
+                         string.Equals(
+                             NormalizeDay(day),
+                             currentDay,
+                             StringComparison.OrdinalIgnoreCase))))
+                .OrderBy(configuration =>
+                    configuration.InventoryConfigurationName)
                 .Select(configuration => new AvailableInventoryConfigurationDto
                 {
-                    InventoryConfigurationId = configuration.InventoryConfigurationId,
-                    InventoryConfigurationName = configuration.InventoryConfigurationName
+                    InventoryConfigurationId =
+                        configuration.InventoryConfigurationId,
+
+                    InventoryConfigurationName =
+                        configuration.InventoryConfigurationName
                 })
                 .ToList();
 
@@ -271,38 +293,52 @@ namespace Inventory.Application.Services
         /// <summary>
         /// Obtiene las secciones activas de una configuración disponible hoy para el centro.
         /// </summary>
-        public async Task<AvailableInventorySectionsResultDto> GetAvailableInventorySections(
-            long solutionCenterId,
-            long inventoryConfigurationId,
-            string role)
+        public async Task<AvailableInventorySectionsResultDto> GetAvailableInventorySections(long solutionCenterId, long inventoryConfigurationId, string role, string? userSolutionCenterCode)
         {
             var result = new AvailableInventorySectionsResultDto();
 
-            if (solutionCenterId <= 0 || inventoryConfigurationId <= 0 || string.IsNullOrWhiteSpace(role))
+            if (solutionCenterId <= 0 ||
+                inventoryConfigurationId <= 0 ||
+                string.IsNullOrWhiteSpace(role))
+            {
                 return result;
+            }
 
-            // Revalidar las mismas reglas de /available, sin depender de una consulta previa del frontend.
-            var availability = await GetAvailableInventoryConfigurations(solutionCenterId, role);
+            var availability = await GetAvailableInventoryConfigurations(
+                solutionCenterId,
+                role,
+                userSolutionCenterCode);
+
             result.IsValidRole = availability.IsValidRole;
             result.IsAllowed = availability.IsAllowed;
 
-            if (!result.IsValidRole || !result.IsAllowed || availability.Data is null)
+            if (!result.IsValidRole ||
+                !result.IsAllowed ||
+                availability.Data is null)
+            {
                 return result;
+            }
 
             result.SolutionCenterExists = true;
-            result.ConfigurationExists = await _inventoryConfigurationRepository.ConfigurationExists(inventoryConfigurationId);
+
+            result.ConfigurationExists =
+                await _inventoryConfigurationRepository
+                    .ConfigurationExists(inventoryConfigurationId);
 
             if (!result.ConfigurationExists)
                 return result;
 
             result.IsAvailable = availability.Data.Any(configuration =>
-                configuration.InventoryConfigurationId == inventoryConfigurationId);
+                configuration.InventoryConfigurationId ==
+                inventoryConfigurationId);
 
             if (!result.IsAvailable)
                 return result;
 
             result.Data = (await _inventoryConfigurationRepository
-                .GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId)).ToList();
+                .GetAvailableInventorySections(
+                    solutionCenterId,
+                    inventoryConfigurationId)).ToList();
 
             return result;
         }
@@ -310,22 +346,24 @@ namespace Inventory.Application.Services
         /// <summary>
         /// Obtiene una página de productos de una sección disponible para la configuración y el centro.
         /// </summary>
-        public async Task<AvailableInventoryProductsResultDto> GetAvailableInventoryProducts(
-            long solutionCenterId,
-            long inventoryConfigurationId,
-            long sectionId,
-            string role,
-            int page,
-            int take)
+        public async Task<AvailableInventoryProductsResultDto> GetAvailableInventoryProducts(long solutionCenterId, long inventoryConfigurationId, long sectionId, string role, string? userSolutionCenterCode)
         {
             var result = new AvailableInventoryProductsResultDto();
 
-            if (solutionCenterId <= 0 || inventoryConfigurationId <= 0 || sectionId <= 0 ||
-                page <= 0 || take <= 0 || string.IsNullOrWhiteSpace(role))
+            if (solutionCenterId <= 0 ||
+                inventoryConfigurationId <= 0 ||
+                sectionId <= 0 ||
+                string.IsNullOrWhiteSpace(role))
+            {
                 return result;
+            }
 
-            // Reutilizar toda la cadena de permisos, disponibilidad y asignaciones del punto de entrada de secciones.
-            var availability = await GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId, role);
+            var availability = await GetAvailableInventorySections(
+                solutionCenterId,
+                inventoryConfigurationId,
+                role,
+                userSolutionCenterCode);
+
             result.IsValidRole = availability.IsValidRole;
             result.IsAllowed = availability.IsAllowed;
             result.SolutionCenterExists = availability.SolutionCenterExists;
@@ -335,39 +373,95 @@ namespace Inventory.Application.Services
             if (!result.IsValidRole || !result.IsAllowed)
                 return result;
 
-            var canViewFullDetail = await _permissionApplication.HasPermission(
-                PermissionKeys.ViewFullInventoryDetail, role);
-            var canViewLimitedDetail = !canViewFullDetail && await _permissionApplication.HasPermission(
-                PermissionKeys.ViewLimitedInventoryDetail, role);
+            var canViewFullDetail =
+                await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewFullInventoryDetail,
+                    role);
 
-            // Ambos permisos habilitan los datos base; aún no hay conteos ni datos ERP integrados que diferenciar.
-            result.HasDetailPermission = canViewFullDetail || canViewLimitedDetail;
-            if (!result.HasDetailPermission || !result.SolutionCenterExists ||
-                !result.ConfigurationExists || !result.IsAvailable)
+            var canViewLimitedDetail =
+                await _permissionApplication.HasPermission(
+                    PermissionKeys.ViewLimitedInventoryDetail,
+                    role);
+
+            result.HasDetailPermission =
+                canViewFullDetail || canViewLimitedDetail;
+
+            if (!result.HasDetailPermission ||
+                !result.SolutionCenterExists ||
+                !result.ConfigurationExists ||
+                !result.IsAvailable)
+            {
                 return result;
+            }
 
-            result.IsSectionAvailable = availability.Data.Any(section => section.SectionId == sectionId);
+            result.IsSectionAvailable = availability.Data.Any(section =>
+                section.SectionId == sectionId);
+
             if (!result.IsSectionAvailable)
                 return result;
 
-            result.Data = await _inventoryConfigurationRepository
-                .GetAvailableInventoryProducts(solutionCenterId, sectionId, page, take);
+            result.Data = await _inventoryConfigurationRepository.GetAvailableInventoryProducts(solutionCenterId, sectionId);
 
-            var productsWithImages = result.Data.Items
+            if (canViewFullDetail && result.Data.Count > 0)
+            {
+                var center = await _inventoryConfigurationRepository
+                    .GetSolutionCenterById(solutionCenterId);
+
+                if (center is null)
+                    throw new InvalidOperationException(
+                        "El centro de solución dejó de existir.");
+
+                var warehouseCode = center.solution_center_code.Trim();
+
+                var references = result.Data
+                    .Select(product => product.Reference)
+                    .ToArray();
+
+                var stocks = await _siesaRepository.GetExistences(
+                    warehouseCode,
+                    references);
+
+                foreach (var product in result.Data)
+                {
+                    if (stocks.TryGetValue(
+                        product.Reference.Trim(),
+                        out var stock))
+                    {
+                        product.UnidadInventario = stock.UnitInventory;
+                        product.Existencia1 = stock.Existence1;
+                        product.Existencia2 = stock.Existence2;
+                        product.SiesaStockStatus = "FOUND";
+                    }
+                    else
+                    {
+                        product.SiesaStockStatus = "NOT_FOUND";
+                    }
+                }
+            }
+
+            var productsWithImages = result.Data
                 .Where(product => !string.IsNullOrWhiteSpace(product.ImagePath))
                 .ToList();
 
             if (productsWithImages.Count > 0)
             {
-                var storageService = _storageService ?? throw new InvalidOperationException(
-                    "El servicio de almacenamiento es obligatorio para generar las URLs de las imágenes.");
-                var storageOptions = _storageOptions ?? throw new InvalidOperationException(
-                    "La configuración de almacenamiento es obligatoria para generar las URLs de las imágenes.");
-                var expiresAt = DateTimeOffset.UtcNow.AddMinutes(storageOptions.SignedUrlExpirationMinutes);
+                var storageService = _storageService
+                    ?? throw new InvalidOperationException(
+                        "El servicio de almacenamiento es obligatorio para las imágenes.");
+
+                var storageOptions = _storageOptions
+                    ?? throw new InvalidOperationException(
+                        "La configuración de almacenamiento es obligatoria.");
+
+                var expiresAt = DateTimeOffset.UtcNow.AddMinutes(
+                    storageOptions.SignedUrlExpirationMinutes);
 
                 foreach (var product in productsWithImages)
                 {
-                    product.ImageUrl = await storageService.GenerateSignedUrlAsync(product.ImagePath!, expiresAt);
+                    product.ImageUrl =
+                        await storageService.GenerateSignedUrlAsync(
+                            product.ImagePath!,
+                            expiresAt);
                 }
             }
 

@@ -10,6 +10,8 @@ namespace Inventory.Domain.Interfaces
         Task<InventorySaveContextDto?> GetContext(long solutionCenterId, long inventoryConfigurationId, long sectionId);
         Task<IEnumerable<Product>> GetProducts(long solutionCenterId, long sectionId, IEnumerable<long> productIds);
         Task<IEnumerable<InventoryExecutionContextDto>> GetExecutionContexts(string inventoryExecutionId);
+        Task<List<int>> GetSavedCountNumbers(string inventoryExecutionId);
+        Task<string?> GetTodayExecutionId(long solutionCenterId, long inventoryConfigurationId, long sectionId, DateTime startDate, DateTime endDate);
         Task<bool> HasDuplicates(IReadOnlyCollection<InventoryRecord> records);
         Task<bool> Save(IReadOnlyCollection<InventoryRecord> records, bool isExistingExecution);
     }

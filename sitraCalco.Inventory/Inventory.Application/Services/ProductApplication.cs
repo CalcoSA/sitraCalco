@@ -280,6 +280,7 @@ namespace Inventory.Application.Services
                         product_name = product.product_name,
                         reference = product.reference,
                         unit_of_measure = product.unit_of_measure,
+                        f122_factor = product.f122_factor,
                         plan_id = product.plan_id,
                         image_path = product.image_path,
                         ImageUrl = await GenerateProductImageUrlAsync(product)
@@ -330,6 +331,7 @@ namespace Inventory.Application.Services
                         ProductName = product.product_name,
                         Reference = product.reference,
                         UnitOfMeasure = product.unit_of_measure,
+                        F122Factor = product.f122_factor,
                         PlanId = product.plan_id,
                         image_path = product.image_path,
                         ImageUrl = await GenerateProductImageUrlAsync(product)

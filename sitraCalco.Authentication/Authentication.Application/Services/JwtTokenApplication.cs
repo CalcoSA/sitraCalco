@@ -51,6 +51,11 @@ namespace Authentication.Application.Services
                 new Claim("nameRole", user.NameRole ?? string.Empty)
             };
 
+            if (!string.IsNullOrWhiteSpace(user.SolutionCenterCode))
+            {
+                claims.Add(new Claim("solutionCenterCode", user.SolutionCenterCode));
+            }
+
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(issuer: issuer, audience: audience, claims: claims, expires: expiresAt, signingCredentials: credentials);

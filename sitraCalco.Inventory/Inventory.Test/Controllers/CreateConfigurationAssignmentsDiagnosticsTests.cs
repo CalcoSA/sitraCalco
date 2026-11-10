@@ -53,7 +53,7 @@ public class CreateConfigurationAssignmentsDiagnosticsTests : IAsyncLifetime
         _context.ChangeTracker.Clear();
         var logs = new Mock<ILogApplication>();
         logs.Setup(x => x.CreateLog(It.IsAny<CreateLogDto>())).Callback<CreateLogDto>(_audit.Add).ReturnsAsync(1);
-        _application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), Mock.Of<IPermissionApplication>());
+        _application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), Mock.Of<IPermissionApplication>(), Mock.Of<Inventory.Domain.Interfaces.ISiesaRepository>());
         _controller = new InventoryConfigurationController(_application, logs.Object,
             new CreateInventoryConfigurationDtoValidator(), new CreateInventoryConfigurationAssignmentsDtoValidator(),
             new UpdateInventoryConfigurationAssignmentStatusDtoValidator(), new UpdateInventoryConfigurationDtoValidator(),

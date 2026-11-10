@@ -493,6 +493,7 @@ namespace Inventory.Api.Controllers
             [FromQuery] int take = 10)
         {
             var role = User.GetRoleName();
+            var solutionCenterCode = User.GetSolutionCenterCode();
 
             try
             {
@@ -518,12 +519,7 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var solutionCenters =
-                    await _solutionCenterApplication
-                        .GetPagedSolutionCenters(
-                            role,
-                            page,
-                            take);
+                var solutionCenters = await _solutionCenterApplication.GetPagedSolutionCenters(role, page, take, solutionCenterCode);
 
                 if (solutionCenters is null)
                 {

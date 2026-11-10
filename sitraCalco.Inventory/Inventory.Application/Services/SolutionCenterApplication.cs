@@ -283,47 +283,47 @@ namespace Inventory.Application.Services
             }
         }
 
-        public async Task<PagedDto<SolutionCenterListDto>?>
-    GetPagedSolutionCenters(
-        string role,
-        int page,
-        int take)
+        public async Task<PagedDto<SolutionCenterListDto>?> GetPagedSolutionCenters(string role, int page, int take, string? solutionCenterCode)
         {
-            try
+            if (string.IsNullOrWhiteSpace(role))
+                return null;
+
+            if (page <= 0)
+                page = 1;
+
+            if (take <= 0)
+                take = 10;
+
+            if (take > 100)
+                take = 100;
+
+            var canViewAssigned = await _permissionApplication.HasPermission(PermissionKeys.ViewAssignedPointOfSales, role);
+
+            if (string.Equals(role, "PDV", StringComparison.OrdinalIgnoreCase))
             {
-                if (string.IsNullOrWhiteSpace(role))
+                if (!canViewAssigned || string.IsNullOrWhiteSpace(solutionCenterCode))
+                {
                     return null;
+                }
 
-                if (page <= 0)
-                    page = 1;
-
-                if (take <= 0)
-                    take = 10;
-
-                if (take > 100)
-                    take = 100;
-
-                var canViewAll = await _permissionApplication.HasPermission(
-                    PermissionKeys.ViewAllSolutionCenters, role);
-                var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(
-                    PermissionKeys.ViewWarehousesOnly, role);
-
-                if (!canViewAll && !canViewWarehouses)
-                    return null;
-
-                // El permiso de todos los centros tiene prioridad si el rol figura en ambos.
-                long? solutionCenterTypeId = canViewAll ? null : 1;
-
-                return await _solutionCenterRepository
-                    .GetPagedSolutionCenters(
-                        page,
-                        take,
-                        solutionCenterTypeId);
+                return await _solutionCenterRepository.GetPagedSolutionCenters(page, take, solutionCenterTypeId: 2, solutionCenterCode: solutionCenterCode.Trim().ToUpperInvariant());
             }
-            catch
+
+            var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+
+            if (canViewAll)
             {
-                throw;
+                return await _solutionCenterRepository.GetPagedSolutionCenters(page, take, solutionCenterTypeId: null);
             }
+
+            var canViewWarehouses = await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+
+            if (canViewWarehouses)
+            {
+                return await _solutionCenterRepository.GetPagedSolutionCenters(page, take, solutionCenterTypeId: 1);
+            }
+
+            return null;
         }
 
         public async Task<SolutionCenterDetailDto?>

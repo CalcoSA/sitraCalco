@@ -632,7 +632,7 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
         await SeedAssignment(otherCenter, 2, true);
         _context.InventoryConfigurations.Add(new() { inventory_configuration_id = 1, inventory_configuration_name = "Semanal" });
         await _context.SaveChangesAsync();
-        var application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), Mock.Of<IPermissionApplication>());
+        var application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), Mock.Of<IPermissionApplication>(), Mock.Of<Inventory.Domain.Interfaces.ISiesaRepository>());
 
         var result = await application.CreateAssignments(1, new CreateInventoryConfigurationAssignmentsDto
         {
@@ -652,7 +652,7 @@ public class CreateSectionConfigurationTests : IAsyncLifetime
         _context.InventoryConfigurations.Add(new() { inventory_configuration_id = 1, inventory_configuration_name = "Semanal" });
         _context.InventoryConfigurationAssignments.Add(new() { inventory_configuration_id = 1, solution_center_id = centerId, section_id = 2, is_active = false });
         await _context.SaveChangesAsync();
-        var application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), Mock.Of<IPermissionApplication>());
+        var application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), Mock.Of<IPermissionApplication>(), Mock.Of<Inventory.Domain.Interfaces.ISiesaRepository>());
 
         Assert.Equal(compatible, (await application.UpdateAssignmentStatus(1, centerId, 2, true)).Value);
         Assert.Equal(compatible, (await _context.InventoryConfigurationAssignments.AsNoTracking().SingleAsync()).is_active);

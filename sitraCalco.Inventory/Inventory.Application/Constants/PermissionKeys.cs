@@ -6,5 +6,6 @@ namespace Inventory.Application.Constants
         public const string ViewWarehousesOnly = "VIEW_WAREHOUSES_ONLY";
         public const string ViewFullInventoryDetail = "VIEW_FULL_INVENTORY_DETAIL";
         public const string ViewLimitedInventoryDetail = "VIEW_LIMITED_INVENTORY_DETAIL";
+        public const string ViewAssignedPointOfSales = "VIEW_ASSIGNED_POINT_OF_SALES";
     }
 }
