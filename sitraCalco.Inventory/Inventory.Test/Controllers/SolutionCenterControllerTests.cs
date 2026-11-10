@@ -979,7 +979,8 @@ namespace Inventory.Test.Controllers
                 x => x.GetPagedSolutionCenters(
                     It.IsAny<string>(),
                     It.IsAny<int>(),
-                    It.IsAny<int>()),
+                    It.IsAny<int>(),
+                    It.IsAny<string?>()),
                 Times.Never);
         }
 
@@ -1010,7 +1011,8 @@ namespace Inventory.Test.Controllers
                     x.GetPagedSolutionCenters(
                         "INVALIDO",
                         1,
-                        10))
+                        10,
+                        null))
                 .ReturnsAsync(
                     (PagedDto<SolutionCenterListDto>?)null);
 
@@ -1054,7 +1056,8 @@ namespace Inventory.Test.Controllers
                     x.GetPagedSolutionCenters(
                         "COSTOS",
                         1,
-                        10))
+                        10,
+                        null))
                 .ReturnsAsync(paged);
 
             var result =
@@ -1102,7 +1105,8 @@ namespace Inventory.Test.Controllers
                     x.GetPagedSolutionCenters(
                         "COSTOS",
                         1,
-                        10))
+                        10,
+                        null))
                 .ReturnsAsync(paged);
 
             var result =
@@ -1135,7 +1139,8 @@ namespace Inventory.Test.Controllers
                     x.GetPagedSolutionCenters(
                         "COSTOS",
                         1,
-                        10))
+                        10,
+                        null))
                 .ThrowsAsync(
                     new Exception(
                         "Error de prueba"));
@@ -1153,6 +1158,85 @@ namespace Inventory.Test.Controllers
             Assert.Equal(
                 500,
                 objectResult.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetSolutionCenters_ShouldForwardAssignedCenterCode_WhenRoleIsPDV()
+        {
+            // The JWT contains the role and the only assigned center code.
+            _controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+                {
+                    User = new System.Security.Claims.ClaimsPrincipal(
+                        new System.Security.Claims.ClaimsIdentity(
+                            new[]
+                            {
+                                new System.Security.Claims.Claim("nameRole", "PDV"),
+                                new System.Security.Claims.Claim("solutionCenterCode", "R01")
+                            },
+                            "TestAuthentication"))
+                }
+            };
+
+            var paged = new PagedDto<SolutionCenterListDto>
+            {
+                Items = new List<SolutionCenterListDto>
+                {
+                    new SolutionCenterListDto
+                    {
+                        SolutionCenterCode = "R01",
+                        SolutionCenterTypeId = 2
+                    }
+                },
+                Total = 1,
+                Page = 1,
+                Take = 10,
+                Pages = 1
+            };
+
+            _solutionCenterApplicationMock
+                .Setup(x => x.GetPagedSolutionCenters("PDV", 1, 10, "R01"))
+                .ReturnsAsync(paged);
+
+            var result = await _controller.GetSolutionCenters(1, 10);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var response = Assert.IsType<ResponseApi>(ok.Value);
+            Assert.True(response.IsSuccess);
+            Assert.Same(paged, response.Result);
+            _solutionCenterApplicationMock.Verify(
+                x => x.GetPagedSolutionCenters("PDV", 1, 10, "R01"),
+                Times.Once);
+        }
+
+        [Fact]
+        public async Task GetSolutionCenters_ShouldReturnForbidden_WhenPDVHasNoCenterCode()
+        {
+            _controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+                {
+                    User = new System.Security.Claims.ClaimsPrincipal(
+                        new System.Security.Claims.ClaimsIdentity(
+                            new[]
+                            {
+                                new System.Security.Claims.Claim("nameRole", "PDV")
+                            },
+                            "TestAuthentication"))
+                }
+            };
+
+            _solutionCenterApplicationMock
+                .Setup(x => x.GetPagedSolutionCenters("PDV", 1, 10, null))
+                .ReturnsAsync((PagedDto<SolutionCenterListDto>?)null);
+
+            var result = await _controller.GetSolutionCenters(1, 10);
+
+            var forbidden = Assert.IsType<ObjectResult>(result);
+            Assert.Equal(403, forbidden.StatusCode);
+            var response = Assert.IsType<ResponseApi>(forbidden.Value);
+            Assert.False(response.IsSuccess);
         }
 
         // =========================================================

@@ -209,11 +209,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             .AnyAsync();
         }
 
-        public async Task<PagedDto<SolutionCenterListDto>>
-    GetPagedSolutionCenters(
-        int page,
-        int take,
-        long? solutionCenterTypeId = null)
+        public async Task<PagedDto<SolutionCenterListDto>> GetPagedSolutionCenters(int page, int take, long? solutionCenterTypeId = null, string? solutionCenterCode = null)
         {
             if (page < 1)
                 page = 1;
@@ -242,6 +238,13 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 query = query.Where(x =>
                     x.SolutionCenter.solution_center_type_id
                         == solutionCenterTypeId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(solutionCenterCode))
+            {
+                var normalizedCode = solutionCenterCode.Trim().ToUpperInvariant();
+
+                query = query.Where(x => x.SolutionCenter.solution_center_code == normalizedCode);
             }
 
             var total = await query.CountAsync();

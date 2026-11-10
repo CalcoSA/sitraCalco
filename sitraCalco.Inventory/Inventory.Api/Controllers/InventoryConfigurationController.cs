@@ -522,8 +522,7 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var result = await _inventoryConfigurationApplication
-                    .GetAvailableInventoryConfigurations(solutionCenterId, role);
+                var result = await _inventoryConfigurationApplication.GetAvailableInventoryConfigurations(solutionCenterId, role, User.GetSolutionCenterCode());
 
                 if (!result.IsValidRole)
                 {
@@ -621,8 +620,7 @@ namespace Inventory.Api.Controllers
                     });
                 }
 
-                var result = await _inventoryConfigurationApplication
-                    .GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId, role);
+                var result = await _inventoryConfigurationApplication.GetAvailableInventorySections(solutionCenterId, inventoryConfigurationId, role, User.GetSolutionCenterCode());
 
                 if (!result.IsValidRole)
                 {
@@ -699,63 +697,36 @@ namespace Inventory.Api.Controllers
         }
 
         /// <summary>
-        /// Obtiene los productos paginados de una sección disponible para la configuración y el centro.
+        /// Obtiene todos los productos configurados de una sección.
+        /// Las existencias de Siesa se incluyen únicamente para roles
+        /// con permiso VIEW_FULL_INVENTORY_DETAIL.
         /// </summary>
         [HttpGet("solution-center/{solutionCenterId:long}/configuration/{inventoryConfigurationId:long}/section/{sectionId:long}/products")]
         public async Task<IActionResult> GetAvailableInventoryProducts(
             long solutionCenterId,
             long inventoryConfigurationId,
-            long sectionId,
-            [FromQuery] int page = 1,
-            [FromQuery] int take = 20)
+            long sectionId)
         {
             var role = User.GetRoleName();
+            var userSolutionCenterCode = User.GetSolutionCenterCode();
 
             try
             {
-                if (solutionCenterId <= 0)
+                if (solutionCenterId <= 0 ||
+                    inventoryConfigurationId <= 0 ||
+                    sectionId <= 0)
                 {
                     return BadRequest(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El identificador de la bodega o punto de venta debe ser mayor a cero.",
-                        Result = new { }
-                    });
-                }
-
-                if (inventoryConfigurationId <= 0)
-                {
-                    return BadRequest(new ResponseApi
-                    {
-                        IsSuccess = false,
-                        Message = "El identificador de la configuración de inventario debe ser mayor a cero.",
-                        Result = new { }
-                    });
-                }
-
-                if (sectionId <= 0)
-                {
-                    return BadRequest(new ResponseApi
-                    {
-                        IsSuccess = false,
-                        Message = "El identificador de la sección debe ser mayor a cero.",
-                        Result = new { }
-                    });
-                }
-
-                if (page <= 0 || take <= 0)
-                {
-                    return BadRequest(new ResponseApi
-                    {
-                        IsSuccess = false,
-                        Message = "Page y Take deben ser mayores a cero.",
+                        Message = "Los identificadores deben ser mayores a cero.",
                         Result = new { }
                     });
                 }
 
                 if (string.IsNullOrWhiteSpace(role))
                 {
-                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    return StatusCode(403, new ResponseApi
                     {
                         IsSuccess = false,
                         Message = "El token no contiene un nameRole válido.",
@@ -764,34 +735,39 @@ namespace Inventory.Api.Controllers
                 }
 
                 var result = await _inventoryConfigurationApplication
-                    .GetAvailableInventoryProducts(solutionCenterId, inventoryConfigurationId, sectionId, role, page, take);
+                    .GetAvailableInventoryProducts(
+                        solutionCenterId,
+                        inventoryConfigurationId,
+                        sectionId,
+                        role,
+                        userSolutionCenterCode);
 
                 if (!result.IsValidRole)
                 {
-                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    return StatusCode(403, new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El rol del token no tiene permisos para esta consulta.",
+                        Message = "El rol no tiene permisos para esta consulta.",
                         Result = new { }
                     });
                 }
 
                 if (!result.IsAllowed)
                 {
-                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    return StatusCode(403, new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El rol no tiene permisos para consultar este centro.",
+                        Message = "No tiene permisos para consultar este centro.",
                         Result = new { }
                     });
                 }
 
                 if (!result.HasDetailPermission)
                 {
-                    return StatusCode(StatusCodes.Status403Forbidden, new ResponseApi
+                    return StatusCode(403, new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "El rol no tiene permisos para consultar el detalle del inventario.",
+                        Message = "No tiene permisos para consultar los productos.",
                         Result = new { }
                     });
                 }
@@ -821,7 +797,7 @@ namespace Inventory.Api.Controllers
                     return NotFound(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "La configuración de inventario no está disponible para este centro.",
+                        Message = "La configuración no está disponible para este centro.",
                         Result = new { }
                     });
                 }
@@ -831,16 +807,15 @@ namespace Inventory.Api.Controllers
                     return NotFound(new ResponseApi
                     {
                         IsSuccess = false,
-                        Message = "La sección no está disponible para esta configuración y centro.",
+                        Message = "La sección no está disponible para este inventario.",
                         Result = new { }
                     });
                 }
 
-                var hasProducts = result.Data.Items.Any();
                 return Ok(new ResponseApi
                 {
-                    IsSuccess = hasProducts,
-                    Message = hasProducts
+                    IsSuccess = result.Data.Count > 0,
+                    Message = result.Data.Count > 0
                         ? "Productos de la sección consultados correctamente."
                         : "No hay productos disponibles para esta sección.",
                     Result = result.Data
@@ -848,9 +823,13 @@ namespace Inventory.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error al consultar los productos del Solution Center {SolutionCenterId}, la configuración {InventoryConfigurationId} y la sección {SectionId} para el rol {Role}.",
-                    solutionCenterId, inventoryConfigurationId, sectionId, role);
+                _logger.LogError(
+                    ex,
+                    "Error al consultar productos de centro {SolutionCenterId}, " +
+                    "configuración {InventoryConfigurationId}, sección {SectionId}.",
+                    solutionCenterId,
+                    inventoryConfigurationId,
+                    sectionId);
 
                 return StatusCode(500, new ResponseApi
                 {

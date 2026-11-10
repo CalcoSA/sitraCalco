@@ -14,6 +14,11 @@ namespace Inventory.Api.Extensions
             return GetAuthenticatedClaim(user, "nameRole");
         }
 
+        public static string? GetSolutionCenterCode(this ClaimsPrincipal user)
+        {
+            return GetAuthenticatedClaim(user, "solutionCenterCode") ?.ToUpperInvariant();
+        }
+
         private static string? GetAuthenticatedClaim(ClaimsPrincipal user, string claimType)
         {
             // Solo se usan identidades autenticadas por el middleware de la API.

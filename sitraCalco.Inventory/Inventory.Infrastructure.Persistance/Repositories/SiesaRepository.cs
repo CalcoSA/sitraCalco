@@ -1,7 +1,9 @@
-﻿using Inventory.Domain.Interfaces;
-using Inventory.Domain.Models;
+﻿using Microsoft.Extensions.Configuration;
+using Inventory.Domain.Interfaces;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
+using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
+using System.Data;
 
 namespace Inventory.Infrastructure.Persistance.Repositories
 {
@@ -11,10 +13,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
 
         public SiesaRepository(IConfiguration configuration)
         {
-            _connectionString =
-                configuration.GetConnectionString("SiesaDatabase")
-                ?? throw new InvalidOperationException(
-                    "No se encontró la cadena de conexión 'SiesaDatabase'.");
+            _connectionString = configuration.GetConnectionString("SiesaDatabase") ?? throw new InvalidOperationException("No se encontró la cadena de conexión 'SiesaDatabase'.");
         }
 
         public async Task<IEnumerable<Product>> GetProducts()
@@ -98,6 +97,11 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                             reader["nombre_unidad"]
                         )?.Trim() ?? string.Empty,
 
+                    f122_factor =
+                        reader["f122_factor"] == DBNull.Value
+                            ? null
+                            : Convert.ToDecimal(reader["f122_factor"]),
+
                     plan_id =
                         reader["f125_id_plan"] == DBNull.Value
                             ? null
@@ -112,6 +116,118 @@ namespace Inventory.Infrastructure.Persistance.Repositories
             }
 
             return products;
+        }
+
+        public async Task<IReadOnlyDictionary<string, SiesaExistenceDto>> GetExistences(string warehouseCode, IReadOnlyCollection<string> references)
+        {
+            if (string.IsNullOrWhiteSpace(warehouseCode))
+                throw new ArgumentException("El código de bodega es obligatorio.", nameof(warehouseCode));
+
+            ArgumentNullException.ThrowIfNull(references);
+
+            var referenceList = references
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            var result = new Dictionary<string, SiesaExistenceDto>(StringComparer.OrdinalIgnoreCase);
+
+            if (referenceList.Length == 0)
+                return result;
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            foreach (var batch in referenceList.Chunk(400))
+            {
+                var parameterNames = batch
+                    .Select((_, index) => $"@ref{index}")
+                    .ToArray();
+
+                var query = $@"
+                    SELECT
+                        RTRIM(i.f120_referencia) AS Referencia,
+                        RTRIM(i.f120_id_unidad_inventario) AS UnidadInventario,
+                        SUM(x.f400_cant_existencia_1) AS Existencia1,
+                        SUM(x.f400_cant_existencia_2) AS Existencia2
+
+                    FROM dbo.t400_cm_existencia AS x
+
+                    INNER JOIN dbo.t150_mc_bodegas AS b
+                        ON b.f150_rowid = x.f400_rowid_bodega
+                        AND b.f150_id_cia = x.f400_id_cia
+
+                    INNER JOIN dbo.t121_mc_items_extensiones AS e
+                        ON e.f121_rowid = x.f400_rowid_item_ext
+                        AND e.f121_id_cia = x.f400_id_cia
+
+                    INNER JOIN dbo.t120_mc_items AS i
+                        ON i.f120_rowid = e.f121_rowid_item
+                        AND i.f120_id_cia = x.f400_id_cia
+
+                    WHERE x.f400_id_cia = @companyId
+                      AND b.f150_id = @warehouseCode
+                      AND i.f120_referencia IN (
+                          {string.Join(", ", parameterNames)}
+                      )
+
+                    GROUP BY
+                        i.f120_rowid,
+                        RTRIM(i.f120_referencia),
+                        RTRIM(i.f120_id_unidad_inventario);
+                ";
+
+                await using var command = new SqlCommand(query, connection);
+
+                command.Parameters.Add("@companyId", SqlDbType.SmallInt)
+                    .Value = (short)9;
+
+                command.Parameters.Add("@warehouseCode", SqlDbType.VarChar, 10)
+                    .Value = warehouseCode.Trim();
+
+                for (var index = 0; index < batch.Length; index++)
+                {
+                    command.Parameters.Add(
+                        parameterNames[index],
+                        SqlDbType.VarChar,
+                        100
+                    ).Value = batch[index];
+                }
+
+                await using var reader = await command.ExecuteReaderAsync();
+
+                while (await reader.ReadAsync())
+                {
+                    var existencia = new SiesaExistenceDto
+                    {
+                        Reference = Convert.ToString(
+                            reader["Referencia"])?.Trim() ?? string.Empty,
+
+                        UnitInventory = Convert.ToString(
+                            reader["UnidadInventario"])?.Trim() ?? string.Empty,
+
+                        Existence1 = reader["Existencia1"] == DBNull.Value
+                            ? null
+                            : Convert.ToDecimal(reader["Existencia1"]),
+
+                        Existence2 = reader["Existencia2"] == DBNull.Value
+                            ? null
+                            : Convert.ToDecimal(reader["Existencia2"])
+                    };
+
+                    if (!result.TryAdd(existencia.Reference, existencia))
+                    {
+                        throw new InvalidOperationException(
+                            $"Siesa devolvió varios registros consolidados " +
+                            $"para la referencia {existencia.Reference} " +
+                            $"en la bodega {warehouseCode}. " +
+                            "Verifique los artículos y unidades de inventario.");
+                    }
+                }
+            }
+
+            return result;
         }
     }
 }

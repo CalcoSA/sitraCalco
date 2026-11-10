@@ -29,6 +29,10 @@ namespace Inventory.Infrastructure.Persistance.Data.Configurations
 
             entity.Property(e => e.unit_of_measure)
                 .HasMaxLength(50);
+
+            entity.Property(e => e.f122_factor)
+                .HasColumnType("decimal(18,6)")
+                .IsRequired(false);
         }
     }
 }

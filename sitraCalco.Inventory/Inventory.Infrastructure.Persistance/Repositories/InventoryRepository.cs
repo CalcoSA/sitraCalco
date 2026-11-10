@@ -152,6 +152,45 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .ToListAsync();
         }
 
+        public async Task<List<int>> GetSavedCountNumbers(string inventoryExecutionId)
+        {
+            var savedNumbers = await _context.InventoryRecords
+                .AsNoTracking()
+                .Where(record => record.inventory_execution_id == inventoryExecutionId)
+                .Select(record => record.count_number)
+                .Distinct()
+                .OrderBy(number => number)
+                .ToListAsync();
+
+            return savedNumbers
+                .Select(number => (int)number)
+                .ToList();
+        }
+
+        public async Task<string?> GetTodayExecutionId(long solutionCenterId, long inventoryConfigurationId, long sectionId, DateTime startDate, DateTime endDate)
+        {
+            var executionIds = await _context.InventoryRecords
+                .AsNoTracking()
+                .Where(record =>
+                    record.solution_center_id == solutionCenterId &&
+                    record.inventory_configuration_id == inventoryConfigurationId &&
+                    record.section_id == sectionId &&
+                    record.count_number == 1 &&
+                    record.created_at >= startDate &&
+                    record.created_at < endDate)
+                .Select(record => record.inventory_execution_id)
+                .Distinct()
+                .Take(2)
+                .ToListAsync();
+
+            if (executionIds.Count > 1)
+            {
+                throw new InvalidOperationException("Existen varias ejecuciones del primer conteo para el mismo centro, inventario, sección y día.");
+            }
+
+            return executionIds.SingleOrDefault();
+        }
+
         public async Task<bool> HasDuplicates(IReadOnlyCollection<InventoryRecord> records)
         {
             var first = records.First();

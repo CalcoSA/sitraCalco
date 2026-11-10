@@ -4,6 +4,7 @@ using Inventory.Api.Controllers;
 using Inventory.Application.Interfaces;
 using Inventory.Application.Services;
 using Inventory.Domain.Dtos;
+using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
 using Inventory.Domain.Responses;
 using Inventory.Domain.Validators;
@@ -55,7 +56,15 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
         _context.ChangeTracker.Clear();
         _permissions.Setup(x => x.HasPermission(It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(true);
         _logs.Setup(x => x.CreateLog(It.IsAny<CreateLogDto>())).Callback<CreateLogDto>(_audit.Add).ReturnsAsync(1);
-        _application = new InventoryConfigurationApplication(new InventoryConfigurationRepository(_context), _permissions.Object, timeProvider: _clock);
+        var siesa = new Mock<ISiesaRepository>();
+        siesa.Setup(x => x.GetExistences(
+                It.IsAny<string>(),
+                It.IsAny<IReadOnlyCollection<string>>()))
+            .ReturnsAsync((IReadOnlyDictionary<string, SiesaExistenceDto>)
+                new Dictionary<string, SiesaExistenceDto>());
+        _application = new InventoryConfigurationApplication(
+            new InventoryConfigurationRepository(_context), _permissions.Object,
+            siesa.Object, timeProvider: _clock);
         _controller = new InventoryConfigurationController(_application, _logs.Object,
             new CreateInventoryConfigurationDtoValidator(), new CreateInventoryConfigurationAssignmentsDtoValidator(),
             new UpdateInventoryConfigurationAssignmentStatusDtoValidator(), new UpdateInventoryConfigurationDtoValidator(),
@@ -96,7 +105,9 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     {
         Assert.IsType<BadRequestObjectResult>(await _controller.Create(new()
         {
-            InventoryConfigurationName = "Inválida", StartDay = start, EndDay = end
+            InventoryConfigurationName = "Inválida",
+            StartDay = start,
+            EndDay = end
         }));
         Assert.Equal(2, await _context.InventoryConfigurations.CountAsync());
         Assert.Empty(_audit);
@@ -425,14 +436,14 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
 
     private async Task AssertAvailability(bool available)
     {
-        var configurations = await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR");
+        var configurations = await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR", null);
         Assert.Equal(available ? 1 : 0, configurations.Data!.Count());
-        var sections = await _application.GetAvailableInventorySections(1, 1, "ADMINISTRADOR");
+        var sections = await _application.GetAvailableInventorySections(1, 1, "ADMINISTRADOR", null);
         Assert.Equal(available, sections.IsAvailable);
         Assert.Equal(available ? 1 : 0, sections.Data.Count());
-        var products = await _application.GetAvailableInventoryProducts(1, 1, 1, "ADMINISTRADOR", 1, 20);
+        var products = await _application.GetAvailableInventoryProducts(1, 1, 1, "ADMINISTRADOR", null);
         Assert.Equal(available, products.IsAvailable);
-        Assert.Equal(available ? 1 : 0, products.Data.Items.Count());
+        Assert.Equal(available ? 1 : 0, products.Data.Count);
     }
 
     [Theory]
@@ -457,16 +468,16 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
     {
         await _application.AddDays(1, new() { Days = new() { weekday } });
         _clock.SetLocalDate(date);
-        Assert.Equal(available ? 1 : 0, (await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR")).Data!.Count());
+        Assert.Equal(available ? 1 : 0, (await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR", null)).Data!.Count());
     }
 
     [Fact]
     public async Task Availability_UsesServerLocalDateInsteadOfUtcDate()
     {
         _clock.SetUtcNow(new DateTimeOffset(2026, 2, 15, 2, 0, 0, TimeSpan.Zero)); // Aún es 14 local.
-        Assert.Empty((await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR")).Data!);
+        Assert.Empty((await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR", null)).Data!);
         _clock.SetUtcNow(new DateTimeOffset(2026, 2, 15, 5, 0, 0, TimeSpan.Zero)); // Comienza el 15 local.
-        Assert.Single((await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR")).Data!);
+        Assert.Single((await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR", null)).Data!);
     }
 
     [Theory]
@@ -486,8 +497,8 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
             await _context.SolutionCenterSections.ExecuteUpdateAsync(s => s.SetProperty(x => x.is_active, false));
         if (inactive == "configurationAssignment")
             await _context.InventoryConfigurationAssignments.ExecuteUpdateAsync(s => s.SetProperty(x => x.is_active, false));
-        Assert.Empty((await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR")).Data!);
-        Assert.Empty((await _application.GetAvailableInventoryConfigurations(2, "ADMINISTRADOR")).Data!);
+        Assert.Empty((await _application.GetAvailableInventoryConfigurations(1, "ADMINISTRADOR", null)).Data!);
+        Assert.Empty((await _application.GetAvailableInventoryConfigurations(2, "ADMINISTRADOR", null)).Data!);
         Assert.Equal(2, (await _application.GetInventoryConfigurations("ADMINISTRADOR", 1, 20))!.Total);
     }
 
@@ -497,19 +508,23 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
         var inventory = new InventoryApplication(new InventoryRepository(_context), _application, _permissions.Object, _logs.Object);
         var request = new CreateInventoryDto
         {
-            SolutionCenterId = 1, InventoryConfigurationId = 1, SectionId = 1, CountNumber = 1, EnteredBy = "Operario",
+            SolutionCenterId = 1,
+            InventoryConfigurationId = 1,
+            SectionId = 1,
+            CountNumber = 1,
+            EnteredBy = "Operario",
             Items = new() { new() { ProductId = 1, CountValue = 4, MultiplicationValue = 1 } }
         };
-        var first = await inventory.Create(request, "ejecutor.jwt", "ADMINISTRADOR");
+        var first = await inventory.Create(request, "ejecutor.jwt", "ADMINISTRADOR", null);
         Assert.Equal(InventorySaveStatus.Success, first.Status);
         request.InventoryExecutionId = first.Data!.InventoryExecutionId;
         _clock.SetLocalDate("2026-03-14");
         foreach (var count in new[] { 2, 3 })
         {
             request.CountNumber = count;
-            Assert.Equal(InventorySaveStatus.InvalidContext, (await inventory.Create(request, "ejecutor.jwt", "ADMINISTRADOR")).Status);
+            Assert.Equal(InventorySaveStatus.InvalidContext, (await inventory.Create(request, "ejecutor.jwt", "ADMINISTRADOR", null)).Status);
         }
-        var historical = await inventory.GetCounts(request.InventoryExecutionId, null, "ADMINISTRADOR");
+        var historical = await inventory.GetCounts(request.InventoryExecutionId, null, "ADMINISTRADOR", null);
         Assert.Equal(InventoryCountsStatus.Success, historical.Status);
         Assert.Single(historical.Data!.Items);
         Assert.Equal(1, await _context.InventoryRecords.CountAsync());
@@ -517,10 +532,10 @@ public class MonthlyInventoryConfigurationTests : IAsyncLifetime
         foreach (var count in new[] { 2, 3 })
         {
             request.CountNumber = count;
-            Assert.Equal(InventorySaveStatus.Success, (await inventory.Create(request, "ejecutor.jwt", "ADMINISTRADOR")).Status);
+            Assert.Equal(InventorySaveStatus.Success, (await inventory.Create(request, "ejecutor.jwt", "ADMINISTRADOR", null)).Status);
         }
         Assert.Equal(3, await _context.InventoryRecords.CountAsync());
-        Assert.Equal(3, (await inventory.GetCounts(request.InventoryExecutionId, null, "ADMINISTRADOR")).Data!.Items.Single().Counts.Count);
+        Assert.Equal(3, (await inventory.GetCounts(request.InventoryExecutionId, null, "ADMINISTRADOR", null)).Data!.Items.Single().Counts.Count);
         Assert.Equal(4, (await _context.InventoryRecords.AsNoTracking().SingleAsync(x => x.count_number == 1)).count_value);
     }
 

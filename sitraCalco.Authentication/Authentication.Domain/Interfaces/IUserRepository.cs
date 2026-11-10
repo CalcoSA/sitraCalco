@@ -10,6 +10,7 @@ namespace Authentication.Domain.Interfaces
         Task<User?> GetAdministrativeUserById(int idUser);
         Task<User?> GetUserByLogin(string userLogin);
         Task<bool> ExistsByUserLogin(string userLogin, int? excludeIdUser = null);
+        Task<string?> GetAssignedSolutionCenterCode(int idUser);
         Task<UserAssignmentResultDto> CreateUser(User user, int idRole, int? solutionCenterId);
         Task<UserAssignmentResultDto> UpdateUser(int idUser, bool statusUser, int idRole, int? solutionCenterId);
         Task DeleteUser(int idUser);

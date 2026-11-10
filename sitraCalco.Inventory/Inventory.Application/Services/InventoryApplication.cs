@@ -1,9 +1,9 @@
-using Inventory.Application.Constants;
 using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
-using Inventory.Domain.Helpers;
+using Inventory.Application.Constants;
 using Inventory.Domain.Interfaces;
+using Inventory.Domain.Helpers;
 using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Application.Services
 {
@@ -26,62 +26,101 @@ namespace Inventory.Application.Services
             _logApplication = logApplication;
         }
 
-        public async Task<InventoryCountsResultDto> GetCounts(string inventoryExecutionId, int? countNumber, string role)
+        public async Task<InventoryCountsResultDto> GetCounts(string inventoryExecutionId, int? countNumber, string role, string? solutionCenterCode)
         {
             if (string.IsNullOrWhiteSpace(inventoryExecutionId) || !Guid.TryParse(inventoryExecutionId.Trim(), out var executionGuid))
+            {
                 return CountsFailure(InventoryCountsStatus.InvalidRequest, "El identificador de ejecución debe tener formato GUID.");
-            if (countNumber.HasValue && countNumber.Value is < 1 or > 3)
-                return CountsFailure(InventoryCountsStatus.InvalidRequest, "El número de conteo debe ser 1, 2 o 3.");
-            if (string.IsNullOrWhiteSpace(role))
-                return CountsFailure(InventoryCountsStatus.Forbidden, "El token no contiene un nameRole válido.");
+            }
 
-            var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
-            var canViewWarehouses = !canViewAll &&
-                await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
-            if (!canViewAll && !canViewWarehouses)
-                return CountsFailure(InventoryCountsStatus.Forbidden, "El rol no tiene permisos para consultar centros de soluciones.");
+            if (countNumber.HasValue && countNumber.Value is < 1 or > 3)
+            {
+                return CountsFailure(InventoryCountsStatus.InvalidRequest, "El número de conteo debe ser 1, 2 o 3.");
+            }
+
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                return CountsFailure(InventoryCountsStatus.Forbidden, "El token no contiene un nameRole válido.");
+            }
 
             var canViewFullDetail = await _permissionApplication.HasPermission(PermissionKeys.ViewFullInventoryDetail, role);
-            var canViewLimitedDetail = !canViewFullDetail &&
-                await _permissionApplication.HasPermission(PermissionKeys.ViewLimitedInventoryDetail, role);
-            if (!canViewFullDetail && !canViewLimitedDetail)
-                return CountsFailure(InventoryCountsStatus.Forbidden, "El rol no tiene permisos para consultar el detalle del inventario.");
-            if (!canViewFullDetail && !countNumber.HasValue)
-                return CountsFailure(InventoryCountsStatus.InvalidRequest, "Debe indicar countNumber para consultar un inventario con permiso de detalle limitado.");
+            var canViewLimitedDetail = await _permissionApplication.HasPermission(PermissionKeys.ViewLimitedInventoryDetail, role);
 
+            if (!canViewFullDetail && !canViewLimitedDetail)
+            {
+                return CountsFailure(InventoryCountsStatus.Forbidden, "El rol no tiene permisos para consultar inventarios.");
+            }
+
+            var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+            var canViewWarehouses = await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+            var canViewAssigned = await _permissionApplication.HasPermission(PermissionKeys.ViewAssignedPointOfSales, role);
             var executionId = executionGuid.ToString();
             var data = await _inventoryRepository.GetCountsContext(executionId);
+
             if (data is null)
+            {
                 return CountsFailure(InventoryCountsStatus.NotFound, "La ejecución de inventario no existe.");
+            }
 
             const long warehouseTypeId = 1;
             const long pointOfSaleTypeId = 2;
-            if (!canViewAll && data.SolutionCenterTypeId != warehouseTypeId)
-                return CountsFailure(InventoryCountsStatus.Forbidden, "El rol no tiene permisos para consultar este centro.");
+
             if (data.SolutionCenterTypeId != warehouseTypeId && data.SolutionCenterTypeId != pointOfSaleTypeId)
+            {
                 throw new InvalidOperationException($"La ejecución {executionId} contiene un tipo de centro no reconocido.");
+            }
+
+            var isPdv = string.Equals(role, "PDV", StringComparison.OrdinalIgnoreCase);
+
+            if (isPdv)
+            {
+                if (!canViewAssigned || string.IsNullOrWhiteSpace(solutionCenterCode) || data.SolutionCenterTypeId != pointOfSaleTypeId || !string.Equals(data.SolutionCenterCode, solutionCenterCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return CountsFailure(InventoryCountsStatus.Forbidden, "No tiene permisos para consultar este punto de venta.");
+                }
+            }
+            else if (!canViewAll && !(canViewWarehouses && data.SolutionCenterTypeId == warehouseTypeId))
+            {
+                return CountsFailure(InventoryCountsStatus.Forbidden, "No tiene permisos para consultar este centro de solución.");
+            }
 
             var isWarehouse = data.SolutionCenterTypeId == warehouseTypeId;
+
             data.CountMode = isWarehouse ? "SINGLE" : "OPEN_CLOSED";
-            // El filtro autorizado llega a SQL antes de leer los valores; FULL tiene prioridad sobre LIMITED.
-            data.Items = await _inventoryRepository.GetCounts(executionId, countNumber);
-            foreach (var item in data.Items)
+            data.SavedCountNumbers = await _inventoryRepository.GetSavedCountNumbers(executionId);
+            data.NextCountNumber = Enumerable.Range(1, 3).Where(number => !data.SavedCountNumbers.Contains(number)).Select(number => (int?)number).FirstOrDefault();
+            data.CanViewFullDetail = canViewFullDetail;
+
+            if (canViewFullDetail)
             {
-                foreach (var count in item.Counts)
+                data.Items = await _inventoryRepository.GetCounts(executionId, countNumber);
+
+                foreach (var item in data.Items)
                 {
-                    if (isWarehouse)
+                    foreach (var count in item.Counts)
                     {
-                        count.Open = null;
-                        count.Closed = null;
-                    }
-                    else
-                    {
-                        count.Value = null;
+                        if (isWarehouse)
+                        {
+                            count.Open = null;
+                            count.Closed = null;
+                        }
+                        else
+                        {
+                            count.Value = null;
+                        }
                     }
                 }
             }
+            else
+            {
+                data.Items = new List<InventoryProductCountsDto>();
+            }
 
-            return new InventoryCountsResultDto { Status = InventoryCountsStatus.Success, Data = data };
+            return new InventoryCountsResultDto
+            {
+                Status = InventoryCountsStatus.Success,
+                Data = data
+            };
         }
 
         private static InventoryCountsResultDto CountsFailure(InventoryCountsStatus status, string message)
@@ -89,7 +128,7 @@ namespace Inventory.Application.Services
             return new InventoryCountsResultDto { Status = status, Message = message };
         }
 
-        public async Task<CreateInventoryResultDto> Create(CreateInventoryDto request, string userLogin, string role)
+        public async Task<CreateInventoryResultDto> Create(CreateInventoryDto request, string userLogin, string role, string? solutionCenterCode)
         {
             var validationError = InventoryRequestValidation.Validate(request);
             if (validationError is not null)
@@ -106,7 +145,7 @@ namespace Inventory.Application.Services
 
             // Reutiliza visibilidad, centro activo, fechas/día y asignaciones activas de configuración/secciones.
             var availability = await _configurationApplication.GetAvailableInventorySections(
-                request.SolutionCenterId, request.InventoryConfigurationId, role);
+                request.SolutionCenterId, request.InventoryConfigurationId, role, solutionCenterCode);
             if (!availability.IsValidRole)
                 return Failure(InventorySaveStatus.Forbidden, "El rol del token no tiene permisos para esta consulta.");
             if (!availability.IsAllowed)
@@ -260,6 +299,64 @@ namespace Inventory.Application.Services
         private static CreateInventoryResultDto Failure(InventorySaveStatus status, string message)
         {
             return new CreateInventoryResultDto { Status = status, Message = message };
+        }
+
+        public async Task<(InventoryCountsStatus Status, string? ExecutionId, string? Message)> GetTodayExecution(long solutionCenterId, long inventoryConfigurationId, long sectionId, string role, string? solutionCenterCode)
+        {
+            if (solutionCenterId <= 0 || inventoryConfigurationId <= 0 || sectionId <= 0)
+            {
+                return (InventoryCountsStatus.InvalidRequest, null, "Los identificadores de centro, inventario y sección deben ser mayores a cero.");
+            }
+
+            if (string.IsNullOrWhiteSpace(role))
+            {
+                return (InventoryCountsStatus.Forbidden, null, "El token no contiene un rol válido.");
+            }
+
+            var canViewFullDetail = await _permissionApplication.HasPermission(PermissionKeys.ViewFullInventoryDetail, role);
+            var canViewLimitedDetail = await _permissionApplication.HasPermission(PermissionKeys.ViewLimitedInventoryDetail, role);
+
+            if (!canViewFullDetail && !canViewLimitedDetail)
+            {
+                return (InventoryCountsStatus.Forbidden, null, "El rol no tiene permisos para consultar inventarios.");
+            }
+
+            var context = await _inventoryRepository.GetContext(solutionCenterId, inventoryConfigurationId, sectionId);
+
+            if (context is null)
+            {
+                return (InventoryCountsStatus.NotFound, null, "No se encontró el centro, inventario o sección.");
+            }
+
+            var center = context.SolutionCenter;
+            var centerTypeId = center.solution_center_type_id;
+
+            const long warehouseTypeId = 1;
+            const long pointOfSaleTypeId = 2;
+
+            var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+            var canViewWarehouses = await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+            var canViewAssigned = await _permissionApplication.HasPermission(PermissionKeys.ViewAssignedPointOfSales, role);
+            var isPdv = string.Equals(role, "PDV", StringComparison.OrdinalIgnoreCase);
+
+            if (isPdv)
+            {
+                if (!canViewAssigned || centerTypeId != pointOfSaleTypeId || string.IsNullOrWhiteSpace(solutionCenterCode) || !string.Equals(center.solution_center_code, solutionCenterCode.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return (InventoryCountsStatus.Forbidden, null, "No tiene permisos para consultar este punto de venta.");
+                }
+            }
+            else if (!canViewAll && !(canViewWarehouses && centerTypeId == warehouseTypeId))
+            {
+                return (InventoryCountsStatus.Forbidden, null, "No tiene permisos para consultar este centro de solución.");
+            }
+
+            var bogotaTimeZone = TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
+            var today = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, bogotaTimeZone).Date;
+            var tomorrow = today.AddDays(1);
+            var executionId = await _inventoryRepository.GetTodayExecutionId(solutionCenterId, inventoryConfigurationId, sectionId, today, tomorrow);
+
+            return (InventoryCountsStatus.Success, executionId, null);
         }
     }
 }

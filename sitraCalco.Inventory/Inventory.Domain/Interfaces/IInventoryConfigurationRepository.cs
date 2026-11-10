@@ -20,7 +20,7 @@ namespace Inventory.Domain.Interfaces
         Task<SolutionCenter?> GetSolutionCenterById(long solutionCenterId);
         Task<IEnumerable<InventoryConfigurationAvailabilityDto>> GetAvailabilityCandidates(long solutionCenterId);
         Task<IEnumerable<AvailableInventorySectionDto>> GetAvailableInventorySections(long solutionCenterId, long inventoryConfigurationId);
-        Task<PagedDto<AvailableInventoryProductDto>> GetAvailableInventoryProducts(long solutionCenterId, long sectionId, int page, int take);
+        Task<List<AvailableInventoryProductDto>> GetAvailableInventoryProducts(long solutionCenterId, long sectionId);
         Task<SolutionCenterInventoryConfigurationsDto?>GetInventoryConfigurationsBySolutionCenterId(long solutionCenterId);
         Task<InventoryConfigurationByIdDto?>GetInventoryConfigurationById(long inventoryConfigurationId);
         Task<AuditResult<bool>> UpdateAssignmentStatus(long inventoryConfigurationId,long solutionCenterId,long sectionId,bool isActive);
@@ -33,7 +33,5 @@ namespace Inventory.Domain.Interfaces
         Task<AuditResult<bool>> DeleteAssignment(long inventoryConfigurationId,long solutionCenterId,long sectionId);
         Task<AuditResult<int>> DeleteAssignmentsBySection(long inventoryConfigurationId,long sectionId);
         Task<AuditResult<int>> DeleteAssignmentsBySolutionCenter(long inventoryConfigurationId, long solutionCenterId);
-
-
     }
 }

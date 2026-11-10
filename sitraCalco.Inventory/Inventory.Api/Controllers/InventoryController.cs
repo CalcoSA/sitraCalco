@@ -17,8 +17,7 @@ namespace Inventory.Api.Controllers
         private readonly IInventoryApplication _inventoryApplication;
         private readonly ILogger<InventoryController> _logger;
 
-        public InventoryController(
-            IInventoryApplication inventoryApplication,
+        public InventoryController(IInventoryApplication inventoryApplication,
             ILogger<InventoryController> logger)
         {
             _inventoryApplication = inventoryApplication;
@@ -46,7 +45,7 @@ namespace Inventory.Api.Controllers
                 if (string.IsNullOrWhiteSpace(role))
                     return Error(403, "El token no contiene un nameRole válido.");
 
-                var result = await _inventoryApplication.Create(request!, userLogin, role);
+                var result = await _inventoryApplication.Create(request!, userLogin, role, User.GetSolutionCenterCode());
                 return result.Status switch
                 {
                     InventorySaveStatus.Success => Ok(new ResponseApi
@@ -83,33 +82,32 @@ namespace Inventory.Api.Controllers
         /// Consulta los conteos guardados de una ejecución, con filtro opcional de conteo.
         /// </summary>
         [HttpGet("{inventoryExecutionId}/counts")]
-        public async Task<IActionResult> GetCounts(
-            string inventoryExecutionId,
-            [FromQuery] int? countNumber = null)
+        public async Task<IActionResult> GetCounts(string inventoryExecutionId, [FromQuery] int? countNumber = null)
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(inventoryExecutionId) ||
-                    !Guid.TryParse(inventoryExecutionId.Trim(), out var executionId))
+                if (string.IsNullOrWhiteSpace(inventoryExecutionId) || !Guid.TryParse(inventoryExecutionId.Trim(), out var executionId))
                     return Error(400, "El identificador de ejecución debe tener formato GUID.");
 
                 if (countNumber.HasValue && countNumber.Value is < 1 or > 3)
                     return Error(400, "El número de conteo debe ser 1, 2 o 3.");
 
                 var role = User.GetRoleName();
+                var solutionCenterCode = User.GetSolutionCenterCode();
+
                 if (string.IsNullOrWhiteSpace(role))
                     return Error(403, "El token no contiene un nameRole válido.");
 
-                var result = await _inventoryApplication.GetCounts(executionId.ToString(), countNumber, role);
+                var result = await _inventoryApplication.GetCounts(executionId.ToString(), countNumber, role, solutionCenterCode);
+
                 if (result.Status == InventoryCountsStatus.Success)
                 {
-                    var hasRecords = result.Data!.Items.Count > 0;
+                    var hasRecords = result.Data!.SavedCountNumbers.Count > 0;
+
                     return Ok(new ResponseApi
                     {
                         IsSuccess = hasRecords,
-                        Message = hasRecords
-                            ? "Conteos de inventario obtenidos correctamente."
-                            : "No se encontraron registros para el conteo solicitado.",
+                        Message = hasRecords ? "Conteos de inventario obtenidos correctamente." : "No se encontraron registros para el conteo solicitado.",
                         Result = result.Data
                     });
                 }
@@ -127,10 +125,57 @@ namespace Inventory.Api.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Error al consultar los conteos de la ejecución {InventoryExecutionId}. Conteo {CountNumber}.",
-                    inventoryExecutionId, countNumber);
+                _logger.LogError(ex, "Error al consultar los conteos de la ejecución {InventoryExecutionId}. Conteo {CountNumber}.", inventoryExecutionId, countNumber);
                 return Error(500, "Error al consultar los conteos del inventario.");
+            }
+        }
+
+        /// <summary>
+        /// Busca la ejecución de inventario iniciada en el día actual
+        /// para el centro, configuración y sección seleccionados.
+        /// </summary>
+        [HttpGet("today-execution")]
+        public async Task<IActionResult> GetTodayExecution([FromQuery] long solutionCenterId, [FromQuery] long inventoryConfigurationId, [FromQuery] long sectionId)
+        {
+            try
+            {
+                var role = User.GetRoleName();
+
+                if (string.IsNullOrWhiteSpace(role))
+                    return Error(403, "El token no contiene un nameRole válido.");
+
+                var solutionCenterCode = User.GetSolutionCenterCode();
+                var result = await _inventoryApplication.GetTodayExecution(solutionCenterId, inventoryConfigurationId, sectionId, role, solutionCenterCode);
+
+                return result.Status switch
+                {
+                    InventoryCountsStatus.Success => Ok(new ResponseApi
+                    {
+                        IsSuccess = true,
+                        Message = result.ExecutionId is null ? "No existen conteos guardados para el día actual." : "Ejecución de inventario encontrada.",
+                        Result = new
+                        {
+                            inventoryExecutionId = result.ExecutionId
+                        }
+                    }),
+
+                    InventoryCountsStatus.InvalidRequest =>
+                        Error(400, result.Message ?? "Parámetros inválidos."),
+
+                    InventoryCountsStatus.Forbidden =>
+                        Error(403, result.Message ?? "Acceso no autorizado."),
+
+                    InventoryCountsStatus.NotFound =>
+                        Error(404, result.Message ?? "Contexto no encontrado."),
+
+                    _ => throw new InvalidOperationException(
+                        "Resultado de consulta no reconocido.")
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al buscar la ejecución del día. Centro {Center}, Inventario {Configuration}, Sección {Section}.", solutionCenterId, inventoryConfigurationId, sectionId);
+                return Error(500, "Error al consultar la ejecución del día.");
             }
         }
 

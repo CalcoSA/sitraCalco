@@ -20,8 +20,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
         /// La llave lógica actual corresponde a:
         /// reference + unit_of_measure + plan_id.
         /// </summary>
-        public async Task<ProductSyncResultDto> UpsertRange(
-    IEnumerable<Product> products)
+        public async Task<ProductSyncResultDto> UpsertRange(IEnumerable<Product> products)
         {
             var productsToProcess = products
                 .Where(product =>
@@ -76,29 +75,28 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 {
                     var newName = product.product_name.Trim();
 
-                    if (!string.Equals(
-    existingProduct.product_name?.Trim(),
-    newName,
-    StringComparison.Ordinal))
+                    var nameChanged = !string.Equals(
+                        existingProduct.product_name?.Trim(),
+                        newName,
+                        StringComparison.Ordinal);
+
+                    var factorChanged =
+                        existingProduct.f122_factor != product.f122_factor;
+
+                    if (nameChanged || factorChanged)
                     {
                         existingProduct.product_name = newName;
+                        existingProduct.f122_factor = product.f122_factor;
 
                         result.Updated++;
 
                         result.UpdatedProducts.Add(
                             new ProductSyncItemDto
                             {
-                                ProductName =
-                                    existingProduct.product_name,
-
-                                Reference =
-                                    existingProduct.reference,
-
-                                UnitOfMeasure =
-                                    existingProduct.unit_of_measure,
-
-                                PlanId =
-                                    existingProduct.plan_id
+                                ProductName = existingProduct.product_name,
+                                Reference = existingProduct.reference,
+                                UnitOfMeasure = existingProduct.unit_of_measure,
+                                PlanId = existingProduct.plan_id
                             });
                     }
                     else
@@ -113,6 +111,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                         product_name = product.product_name.Trim(),
                         reference = product.reference.Trim(),
                         unit_of_measure = product.unit_of_measure.Trim(),
+                        f122_factor = product.f122_factor,
                         plan_id = product.plan_id?.Trim(),
                         image_path = null
                     };
