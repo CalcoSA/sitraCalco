@@ -60,3 +60,5 @@ packages/
 *.cache
 .DS_Store
 Thumbs.db
+
+gha-creds-*.json
