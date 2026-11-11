@@ -1,13 +1,28 @@
-using Authentication.Application;
-using Authentication.Infrastructure.Persistance.Data;
-using Authentication.Api.Extensions;
 using SessionOptions = Authentication.Domain.Options.SessionOptions;
+using Authentication.Infrastructure.Persistance.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Google.Cloud.SecretManager.V1;
+using Authentication.Api.Extensions;
+using Authentication.Application;
 using Microsoft.OpenApi;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+if (!builder.Environment.IsDevelopment())
+{
+    var projectId = builder.Configuration["SecretManager:ProjectId"] ?? throw new InvalidOperationException("No se configuró SecretManager:ProjectId.");
+    var secretId = builder.Configuration["SecretManager:SecretId"] ?? throw new InvalidOperationException("No se configuró SecretManager:SecretId.");
+    var client = SecretManagerServiceClient.Create();
+    var secretVersion = new SecretVersionName(projectId, secretId, "latest");
+    var response = client.AccessSecretVersion(secretVersion);
+
+    using var stream = new MemoryStream(response.Payload.Data.ToByteArray());
+
+    builder.Configuration.AddJsonStream(stream);
+    builder.Configuration.AddEnvironmentVariables();
+}
 
 const string CorsPolicy = "SitraCalcoCorsPolicy";
 

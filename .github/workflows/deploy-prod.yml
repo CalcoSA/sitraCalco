@@ -1,0 +1,113 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: sitracalco-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and test
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for svc in Authentication Inventory KitchenTraceability; do
+            dotnet build "sitraCalco.$svc/$svc.Api/$svc.Api.csproj" -c Release
+            dotnet test "sitraCalco.$svc/$svc.Test/$svc.Test.csproj" -c Release
+          done
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: calco-sa-508817
+          workload_identity_provider: projects/535758237367/locations/global/workloadIdentityPools/sitracalco-gh/providers/github
+          service_account: calco-sa@calco-sa-508817.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure deployment SSH key
+        shell: bash
+        env:
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_HOST_KEY: ${{ secrets.VM_HOST_KEY }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$VM_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VM_HOST_KEY" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<'CONFIG'
+          Host sitracalco-vm
+            HostName 127.0.0.1
+            User calco-sa
+            Port 2222
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+          CONFIG
+          chmod 600 "$HOME/.ssh/config"
+
+      - name: Sync and deploy via IAP and SSH
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gcloud compute start-iap-tunnel calco-operation 22 \
+            --project=calco-sa-508817 \
+            --zone=us-central1-a \
+            --local-host-port=localhost:2222 \
+            > "$RUNNER_TEMP/iap.log" 2>&1 < /dev/null &
+          tunnel_pid=$!
+          trap 'kill "$tunnel_pid" 2>/dev/null || true' EXIT
+
+          for i in {1..30}; do
+            if nc -z 127.0.0.1 2222; then break; fi
+            sleep 2
+          done
+          if ! nc -z 127.0.0.1 2222; then
+            cat "$RUNNER_TEMP/iap.log"
+            exit 1
+          fi
+
+          ssh -T sitracalco-vm 'mkdir -p /opt/apps/sitracalco/prod'
+          rsync -az --delete \
+            --exclude='.git/' \
+            --exclude='**/bin/' \
+            --exclude='**/obj/' \
+            --exclude='.vs/' \
+            --exclude='gha-creds-*.json' \
+            ./ sitracalco-vm:/opt/apps/sitracalco/prod/
+
+          ssh -T sitracalco-vm 'bash -se' <<'REMOTE'
+          set -Eeuo pipefail
+          cd /opt/apps/sitracalco/prod
+          docker compose -f docker-compose.prod.yml config --quiet
+          docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+          docker compose -f docker-compose.prod.yml ps
+          for svc in auth inventory kitchen; do
+            docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx "$svc"
+          done
+          REMOTE
