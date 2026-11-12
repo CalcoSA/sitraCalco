@@ -9,9 +9,6 @@ namespace Authentication.Domain.Dtos
         public int? SolutionCenterId { get; set; }
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string? SolutionCenterCode { get; set; }
-
-        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string? SolutionCenterName { get; set; }
     }
 }
