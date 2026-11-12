@@ -1,0 +1,38 @@
+﻿using Inventory.Domain.Models;
+using Microsoft.EntityFrameworkCore;
+using System.Data;
+
+namespace Inventory.Infrastructure.Persistance.Data
+{
+    public partial class SitraCalcoContext : DbContext
+    {
+        public SitraCalcoContext() { }
+        public SitraCalcoContext(DbContextOptions<SitraCalcoContext> options) : base(options) { }
+
+        public virtual DbSet<Product> Products { get; set; }
+
+        public virtual DbSet<SolutionCenterType> SolutionCenterTypes { get; set; }
+
+        public virtual DbSet<SolutionCenter> SolutionCenters { get; set; }
+
+        public virtual DbSet<Section>Sections { get; set; }
+
+        public virtual DbSet<Permission> Permissions { get; set; }
+
+        public virtual DbSet<SolutionCenterProduct> SolutionCenterProducts { get; set; }
+        public virtual DbSet<SolutionCenterSection> SolutionCenterSections { get; set; }
+        public virtual DbSet<InventoryLog> InventoryLogs { get; set; }
+        public virtual DbSet<InventoryRecord> InventoryRecords { get; set; }
+        public virtual DbSet<InventoryExportParameter> InventoryExportParameters { get; set; }
+        public virtual DbSet<InventoryConfigurationAssignment>InventoryConfigurationAssignments{ get; set; }
+
+        public virtual DbSet<InventoryConfiguration>InventoryConfigurations{ get; set; }
+
+        public virtual DbSet<InventoryConfigurationDay>InventoryConfigurationDays{ get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(SitraCalcoContext).Assembly);
+        }
+    }
+}

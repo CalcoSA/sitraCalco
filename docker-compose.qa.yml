@@ -1,0 +1,84 @@
+name: sitracalco-qa
+
+services:
+  auth:
+    build:
+      context: .
+      dockerfile: sitraCalco.Authentication/Dockerfile
+    image: sitracalco/authentication:qa
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "QA"
+      ASPNETCORE_HTTP_PORTS: "8080"
+      SecretManager__ProjectId: "calco-sa-508817"
+      SecretManager__SecretId: "sitracalco-qa-auth-config"
+    ports:
+      - "127.0.0.1:5101:8080"
+    volumes:
+      - /opt/apps/sitracalco/certs/server-ca.pem:/certs/server-ca.pem:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m,uid=1654,gid=1654
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    networks:
+      - qa_internal
+
+  inventory:
+    build:
+      context: .
+      dockerfile: sitraCalco.Inventory/Dockerfile
+    image: sitracalco/inventory:qa
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "QA"
+      ASPNETCORE_HTTP_PORTS: "8080"
+      SecretManager__ProjectId: "calco-sa-508817"
+      SecretManager__SecretId: "sitracalco-qa-inventory-config"
+    ports:
+      - "127.0.0.1:5102:8080"
+    volumes:
+      - /opt/apps/sitracalco/certs/server-ca.pem:/certs/server-ca.pem:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m,uid=1654,gid=1654
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    networks:
+      - qa_internal
+
+  kitchen:
+    build:
+      context: .
+      dockerfile: sitraCalco.KitchenTraceability/Dockerfile
+    image: sitracalco/kitchentraceability:qa
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: "QA"
+      ASPNETCORE_HTTP_PORTS: "8080"
+      SecretManager__ProjectId: "calco-sa-508817"
+      SecretManager__SecretId: "sitracalco-qa-kitchen-config"
+    ports:
+      - "127.0.0.1:5103:8080"
+    volumes:
+      - /opt/apps/sitracalco/certs/server-ca.pem:/certs/server-ca.pem:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m,uid=1654,gid=1654
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    networks:
+      - qa_internal
+
+networks:
+  qa_internal:
+    driver: bridge
