@@ -1,0 +1,6 @@
+@KitchenTraceability.Api_HostAddress = http://localhost:5117
+
+GET {{KitchenTraceability.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
