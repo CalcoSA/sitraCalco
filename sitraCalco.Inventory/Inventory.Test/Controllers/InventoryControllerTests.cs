@@ -266,8 +266,16 @@ namespace Inventory.Test.Controllers
             CountMode = countMode
         };
 
+
         private void SetupCounts(InventoryCountsDto data, int? countNumber, string role)
         {
+            data.SavedCountNumbers = data.Items
+                .SelectMany(item => item.Counts)
+                .Select(count => count.CountNumber)
+                .Distinct()
+                .OrderBy(number => number)
+                .ToList();
+
             _applicationMock.Setup(x => x.GetCounts(ExecutionId, countNumber, role, null))
                 .ReturnsAsync(new InventoryCountsResultDto
                 {
@@ -275,6 +283,7 @@ namespace Inventory.Test.Controllers
                     Data = data
                 });
         }
+
 
         [Theory]
         [InlineData(null)]
