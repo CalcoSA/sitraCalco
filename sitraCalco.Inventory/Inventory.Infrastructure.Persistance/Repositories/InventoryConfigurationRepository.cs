@@ -1,21 +1,40 @@
-﻿using Inventory.Domain.Helpers;
-using Inventory.Domain.Dtos;
-using Inventory.Domain.Interfaces;
-using Inventory.Domain.Models;
-using Inventory.Infrastructure.Persistance.Data;
+﻿using Inventory.Infrastructure.Persistance.Data;
 using Microsoft.EntityFrameworkCore;
+using Inventory.Domain.Interfaces;
+using Inventory.Domain.Helpers;
+using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Infrastructure.Persistance.Repositories
 {
-    public class InventoryConfigurationRepository
-        : IInventoryConfigurationRepository
+    public class InventoryConfigurationRepository : IInventoryConfigurationRepository
     {
         private readonly SitraCalcoContext _context;
-
-        public InventoryConfigurationRepository(
-            SitraCalcoContext context)
+        public InventoryConfigurationRepository(SitraCalcoContext context)
         {
             _context = context;
+        }
+
+        /// <summary>
+        /// Método para obtener todos los registros de la tabla inventoryConfiguration asociados a un solutionCenterId
+        /// </summary>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter para buscar</param>
+        /// <returns>Type: AvailableInventoryConfigurationDto - Lista con la información solicitada</returns>
+        public async Task<List<AvailableInventoryConfigurationDto>> GetConfigsBySolutionCenterId(long solutionCenterId)
+        {
+            return await _context.InventoryConfigurations
+                .AsNoTracking()
+                .Where(configuration =>
+                    _context.InventoryConfigurationAssignments.Any(assignment =>
+                        assignment.inventory_configuration_id == configuration.inventory_configuration_id && assignment.solution_center_id == solutionCenterId))
+                .OrderBy(configuration => configuration.inventory_configuration_name)
+                .ThenBy(configuration => configuration.inventory_configuration_id)
+                .Select(configuration => new AvailableInventoryConfigurationDto
+                {
+                    InventoryConfigurationId = configuration.inventory_configuration_id,
+                    InventoryConfigurationName = configuration.inventory_configuration_name
+                })
+                .ToListAsync();
         }
 
         /// <summary>

@@ -1,12 +1,12 @@
 ﻿using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
 using Inventory.Application.Constants;
-using Inventory.Domain.Interfaces;
-using Inventory.Domain.Models;
-using Inventory.Domain.Options;
 using Microsoft.Extensions.Options;
-using Inventory.Domain.Helpers;
 using Inventory.Domain.Validators;
+using Inventory.Domain.Interfaces;
+using Inventory.Domain.Helpers;
+using Inventory.Domain.Options;
+using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Application.Services
 {
@@ -32,6 +32,42 @@ namespace Inventory.Application.Services
             _storageService = storageService;
             _storageOptions = storageOptions?.Value;
             _timeProvider = timeProvider ?? TimeProvider.System;
+        }
+
+
+        /// <summary>
+        /// Método que recibe la solicitud del controlador para obtener todas las configuraciones de inventario asociadas a un centro de solución.
+        /// </summary>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter</param>
+        /// <param name="role">Rol del usuario autenticado</param>
+        /// <returns>Type: AvailableInventoryConfigurationDto - Lista con la información solicitada</returns>
+        public async Task<IEnumerable<AvailableInventoryConfigurationDto>?> GetInventoryConfigurationsBySolutionCenter(long solutionCenterId, string role)
+        {
+            try
+            {
+                if (solutionCenterId <= 0 || string.IsNullOrWhiteSpace(role))
+                    return null;
+
+                var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+                var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+
+                if (!canViewAll && !canViewWarehouses)
+                    return null;
+
+                var center = await _inventoryConfigurationRepository.GetSolutionCenterById(solutionCenterId);
+
+                if (center is null)
+                    return new List<AvailableInventoryConfigurationDto>();
+
+                if (!canViewAll && center.solution_center_type_id != 1)
+                    return null;
+
+                return await _inventoryConfigurationRepository.GetConfigsBySolutionCenterId(solutionCenterId);
+            }
+            catch
+            {
+                throw;
+            }
         }
 
         /// <summary>

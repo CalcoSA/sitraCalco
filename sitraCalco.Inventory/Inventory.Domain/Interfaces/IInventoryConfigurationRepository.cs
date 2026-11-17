@@ -5,6 +5,7 @@ namespace Inventory.Domain.Interfaces
 {
     public interface IInventoryConfigurationRepository
     {
+        Task<List<AvailableInventoryConfigurationDto>> GetConfigsBySolutionCenterId(long solutionCenterId);
         Task<bool> ExistsByName(string inventoryConfigurationName);
         Task<long> CreateInventoryConfiguration(InventoryConfiguration inventoryConfiguration);
         Task<bool> ConfigurationExists(long inventoryConfigurationId);

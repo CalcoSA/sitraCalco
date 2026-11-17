@@ -1,10 +1,10 @@
-﻿using Inventory.Api.Extensions;
-using FluentValidation;
+﻿using Microsoft.AspNetCore.Authorization;
 using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
-using Microsoft.AspNetCore.Authorization;
+using Inventory.Api.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Inventory.Domain.Dtos;
+using FluentValidation;
 
 namespace Inventory.Api.Controllers
 {
@@ -13,66 +13,92 @@ namespace Inventory.Api.Controllers
     [Authorize]
     public class InventoryConfigurationController : ControllerBase
     {
-        private readonly IInventoryConfigurationApplication
-            _inventoryConfigurationApplication;
+        private readonly IInventoryConfigurationApplication _inventoryConfigurationApplication;
+        private readonly ILogApplication _logApplication;
+        private readonly IValidator<CreateInventoryConfigurationDto> _createInventoryConfigurationValidator;
+        private readonly IValidator<CreateInventoryConfigurationAssignmentsDto> _createAssignmentsValidator;
+        private readonly ILogger<InventoryConfigurationController> _logger;
+        private readonly IValidator<UpdateInventoryConfigurationAssignmentStatusDto> _updateAssignmentStatusValidator;
+        private readonly IValidator<UpdateInventoryConfigurationDto> _updateInventoryConfigurationValidator;
+        private readonly IValidator<AddInventoryConfigurationDaysDto> _addInventoryConfigurationDaysValidator;
 
-        private readonly ILogApplication
-            _logApplication;
-
-        private readonly IValidator<CreateInventoryConfigurationDto>
-            _createInventoryConfigurationValidator;
-
-        private readonly IValidator<CreateInventoryConfigurationAssignmentsDto>
-             _createAssignmentsValidator;
-
-        private readonly ILogger<InventoryConfigurationController>
-            _logger;
-
-        private readonly IValidator<UpdateInventoryConfigurationAssignmentStatusDto>
-            _updateAssignmentStatusValidator;
-        private readonly IValidator<UpdateInventoryConfigurationDto>
-            _updateInventoryConfigurationValidator;
-        private readonly IValidator<AddInventoryConfigurationDaysDto>
-            _addInventoryConfigurationDaysValidator;
-
-        public InventoryConfigurationController(
-            IInventoryConfigurationApplication inventoryConfigurationApplication,
+        public InventoryConfigurationController(IInventoryConfigurationApplication inventoryConfigurationApplication,
             ILogApplication logApplication,
-            IValidator<CreateInventoryConfigurationDto>
-                createInventoryConfigurationValidator,
-            IValidator<CreateInventoryConfigurationAssignmentsDto>
-                createAssignmentsValidator,
-            IValidator<UpdateInventoryConfigurationAssignmentStatusDto>
-                updateAssignmentStatusValidator,
-            IValidator<UpdateInventoryConfigurationDto>
-                updateInventoryConfigurationValidator,
-            IValidator<AddInventoryConfigurationDaysDto>
-                addInventoryConfigurationDaysValidator,
+            IValidator<CreateInventoryConfigurationDto> createInventoryConfigurationValidator,
+            IValidator<CreateInventoryConfigurationAssignmentsDto> createAssignmentsValidator,
+            IValidator<UpdateInventoryConfigurationAssignmentStatusDto> updateAssignmentStatusValidator,
+            IValidator<UpdateInventoryConfigurationDto> updateInventoryConfigurationValidator,
+            IValidator<AddInventoryConfigurationDaysDto> addInventoryConfigurationDaysValidator,
             ILogger<InventoryConfigurationController> logger)            
         {
-            _inventoryConfigurationApplication =
-                inventoryConfigurationApplication;
+            _inventoryConfigurationApplication = inventoryConfigurationApplication;
+            _logApplication = logApplication;
+            _createInventoryConfigurationValidator = createInventoryConfigurationValidator;
+            _createAssignmentsValidator = createAssignmentsValidator;
+            _updateAssignmentStatusValidator = updateAssignmentStatusValidator;
+            _updateInventoryConfigurationValidator = updateInventoryConfigurationValidator;
+            _logger = logger;
+            _addInventoryConfigurationDaysValidator = addInventoryConfigurationDaysValidator;
+        }
 
-            _logApplication =
-                logApplication;
+        [HttpGet("solution-center/{solutionCenterId:long}/configurations/all")]
+        public async Task<IActionResult> GetAllInventoryConfigurationsBySolutionCenterId(long solutionCenterId)
+        {
+            var role = User.GetRoleName();
 
-            _createInventoryConfigurationValidator =
-                createInventoryConfigurationValidator;
+            try
+            {
+                if (solutionCenterId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El identificador del centro de solución debe ser mayor a cero.",
+                        Result = new { }
+                    });
+                }
 
-            _createAssignmentsValidator =
-                createAssignmentsValidator;
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        new ResponseApi
+                        {
+                            IsSuccess = false,
+                            Message = "El token no contiene un nameRole válido.",
+                            Result = new { }
+                        });
+                }
 
-            _updateAssignmentStatusValidator =
-                updateAssignmentStatusValidator;
+                var configurations = await _inventoryConfigurationApplication.GetInventoryConfigurationsBySolutionCenter(solutionCenterId, role);
 
-            _updateInventoryConfigurationValidator =
-                updateInventoryConfigurationValidator;
+                if (configurations is null)
+                {
+                    return StatusCode(403, new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "El rol no tiene permisos para esta consulta.",
+                        Result = new { }
+                    });
+                }
 
-            _logger =
-                logger;
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Configuraciones de inventario consultadas correctamente.",
+                    Result = configurations
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar todas las configuraciones de inventario del centro {SolutionCenterId}.", solutionCenterId);
 
-            _addInventoryConfigurationDaysValidator =
-                addInventoryConfigurationDaysValidator;
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al consultar las configuraciones de inventario.",
+                    Result = new { }
+                });
+            }
         }
 
         /// <summary>
