@@ -1,8 +1,8 @@
-using Inventory.Domain.Dtos;
-using Inventory.Domain.Interfaces;
-using Inventory.Domain.Models;
 using Inventory.Infrastructure.Persistance.Data;
 using Microsoft.EntityFrameworkCore;
+using Inventory.Domain.Interfaces;
+using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 using MySqlConnector;
 using System.Data;
 
@@ -242,6 +242,150 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 await transaction.RollbackAsync();
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Método para obtener el tipo de un SolutionCenter desde los registros históricos.
+        /// </summary>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter</param>
+        /// <returns>Type: long - Identificador del tipo de centro</returns>
+        public async Task<long?> GetHistorySolutionCenterType(long solutionCenterId)
+        {
+            return await _context.InventoryRecords
+                .AsNoTracking()
+                .Where(record => record.solution_center_id == solutionCenterId)
+                .Select(record => (long?)record.solution_center_type_id)
+                .FirstOrDefaultAsync();
+        }
+
+        /// <summary>
+        /// Método para consultar el historial de inventario por rango de fechas, SolutionCenter, InventoryConfiguration y Section.
+        /// </summary>
+        /// <param name="fromDate">Fecha inicial</param>
+        /// <param name="toDate">Fecha final inclusiva</param>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter</param>
+        /// <param name="inventoryConfigurationId">Identificador del InventoryConfiguration</param>
+        /// <param name="sectionId">Identificador de la sección</param>
+        /// <param name="solutionCenterTypeId">Filtro opcional del tipo de centro autorizado</param>
+        /// <returns>Type: InventoryHistoryDto - Lista con el historial solicitado</returns>
+        public async Task<List<InventoryHistoryDto>> GetHistory(DateOnly fromDate, DateOnly toDate, long solutionCenterId, long inventoryConfigurationId, long sectionId, long? solutionCenterTypeId = null)
+        {
+            var startDate = fromDate.ToDateTime(TimeOnly.MinValue);
+
+            DateTime? endExclusive = toDate == DateOnly.MaxValue ? null : toDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
+
+            var firstCountQuery = _context.InventoryRecords
+                .AsNoTracking()
+                .Where(record =>
+                    record.solution_center_id == solutionCenterId &&
+                    record.inventory_configuration_id == inventoryConfigurationId &&
+                    record.section_id == sectionId &&
+                    record.count_number == 1);
+
+            if (solutionCenterTypeId.HasValue)
+            {
+                firstCountQuery = firstCountQuery.Where(record => record.solution_center_type_id == solutionCenterTypeId.Value);
+            }
+
+            var executionsQuery = firstCountQuery
+                .GroupBy(record => record.inventory_execution_id)
+                .Select(group => new
+                {
+                    InventoryExecutionId = group.Key,
+                    FirstCountAt = group.Min(record => record.created_at)
+                })
+                .Where(execution => execution.FirstCountAt >= startDate);
+
+            if (endExclusive.HasValue)
+            {
+                executionsQuery = executionsQuery.Where(execution => execution.FirstCountAt < endExclusive.Value);
+            }
+
+            var executions = await executionsQuery.ToListAsync();
+
+            if (executions.Count == 0)
+                return new List<InventoryHistoryDto>();
+
+            var executionDates = executions.ToDictionary(
+                execution => execution.InventoryExecutionId,
+                execution => DateOnly.FromDateTime(execution.FirstCountAt));
+
+            var executionIds = executionDates.Keys.ToList();
+
+            var recordsQuery = _context.InventoryRecords
+                .AsNoTracking()
+                .Where(record =>
+                    executionIds.Contains(record.inventory_execution_id) &&
+                    record.solution_center_id == solutionCenterId &&
+                    record.inventory_configuration_id == inventoryConfigurationId &&
+                    record.section_id == sectionId);
+
+            if (solutionCenterTypeId.HasValue)
+            {
+                recordsQuery = recordsQuery.Where(record => record.solution_center_type_id == solutionCenterTypeId.Value);
+            }
+
+            var records = await recordsQuery
+                .OrderBy(record => record.inventory_execution_id)
+                .ThenBy(record => record.product_id)
+                .ThenBy(record => record.count_number)
+                .ThenBy(record => record.inventory_id)
+                .Select(record => new
+                {
+                    record.inventory_execution_id,
+                    record.product_id,
+                    record.reference,
+                    record.product_name,
+                    record.unit_of_measure,
+                    record.count_number,
+                    record.count_value,
+                    record.open,
+                    record.closed,
+                    record.multiplication_value,
+                    record.entered_by
+                })
+                .ToListAsync();
+
+            return records
+                .GroupBy(record => record.inventory_execution_id)
+                .Select(execution => new InventoryHistoryDto
+                {
+                    Date = executionDates[execution.Key],
+                    InventoryExecutionId = execution.Key,
+
+                    Products = execution
+                        .GroupBy(record => record.product_id)
+                        .Select(productGroup =>
+                        {
+                            var product = productGroup.First();
+
+                            return new InventoryHistoryProductDto
+                            {
+                                Reference = product.reference,
+                                ProductName = product.product_name,
+                                UnitOfMeasure = product.unit_of_measure,
+
+                                Counts = productGroup
+                                    .OrderBy(record => record.count_number)
+                                    .Select(record => new InventoryHistoryCountDto
+                                    {
+                                        CountNumber = record.count_number,
+                                        CountValue = record.count_value,
+                                        Open = record.open,
+                                        Closed = record.closed,
+                                        MultiplicationValue = record.multiplication_value,
+                                        EnteredBy = record.entered_by
+                                    })
+                                    .ToList()
+                            };
+                        })
+                        .OrderBy(product => product.Reference)
+                        .ThenBy(product => product.UnitOfMeasure)
+                        .ToList()
+                })
+                .OrderBy(execution => execution.Date)
+                .ThenBy(execution => execution.InventoryExecutionId)
+                .ToList();
         }
     }
 }

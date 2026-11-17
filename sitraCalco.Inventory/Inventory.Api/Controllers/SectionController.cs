@@ -1,10 +1,10 @@
-﻿using Inventory.Api.Extensions;
-using FluentValidation;
+﻿using Microsoft.AspNetCore.Authorization;
 using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Inventory.Api.Extensions;
+using Inventory.Domain.Dtos;
+using FluentValidation;
 
 namespace Inventory.Api.Controllers
 {
@@ -19,8 +19,7 @@ namespace Inventory.Api.Controllers
         private readonly IValidator<UpdateSectionDto> _updateSectionValidator;
         private readonly ILogger<SectionController> _logger;
 
-        public SectionController(
-            ISectionApplication sectionApplication,
+        public SectionController(ISectionApplication sectionApplication,
             ILogApplication logApplication,
             IValidator<CreateSectionDto> createSectionValidator,
             IValidator<UpdateSectionDto> updateSectionValidator,
@@ -82,6 +81,54 @@ namespace Inventory.Api.Controllers
                     IsSuccess = false,
                     Message =
                         "Ocurrió un error al consultar las secciones.",
+                    Result = new { }
+                });
+            }
+        }
+
+        [HttpGet("solution-center/{solutionCenterId:long}/configuration/{inventoryConfigurationId:long}/sections/all")]
+        public async Task<IActionResult> GetSectionsBySolutionCenterAndConfiguration(long solutionCenterId, long inventoryConfigurationId)
+        {
+            try
+            {
+                if (solutionCenterId <= 0 || inventoryConfigurationId <= 0)
+                {
+                    return BadRequest(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "Los identificadores deben ser mayores a cero.",
+                        Result = new { }
+                    });
+                }
+
+                var result = await _sectionApplication.GetSectionsBySolutionCenterAndConfiguration(solutionCenterId, inventoryConfigurationId);
+
+                var sections = result?.ToList() ?? new List<AvailableInventorySectionDto>();
+
+                if (!sections.Any())
+                {
+                    return Ok(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "No se encontraron secciones asociadas al centro de solución y configuración de inventario.",
+                        Result = sections
+                    });
+                }
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Secciones consultadas correctamente.",
+                    Result = sections
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar las secciones del centro {SolutionCenterId} y la configuración {InventoryConfigurationId}.", solutionCenterId, inventoryConfigurationId);
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al consultar las secciones.",
                     Result = new { }
                 });
             }
