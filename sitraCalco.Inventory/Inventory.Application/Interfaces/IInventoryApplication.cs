@@ -7,5 +7,6 @@ namespace Inventory.Application.Interfaces
         Task<InventoryCountsResultDto> GetCounts(string inventoryExecutionId, int? countNumber, string role, string? solutionCenterCode);
         Task<CreateInventoryResultDto> Create(CreateInventoryDto request, string userLogin, string role, string? solutionCenterCode);
         Task<(InventoryCountsStatus Status, string? ExecutionId, string? Message)> GetTodayExecution(long solutionCenterId, long inventoryConfigurationId, long sectionId, string role, string? solutionCenterCode);
+        Task<(InventoryCountsStatus Status, List<InventoryHistoryDto>? Data, string? Message)> GetHistory(DateOnly? fromDate, DateOnly? toDate, long solutionCenterId, long inventoryConfigurationId, long sectionId, string role);
     }
 }

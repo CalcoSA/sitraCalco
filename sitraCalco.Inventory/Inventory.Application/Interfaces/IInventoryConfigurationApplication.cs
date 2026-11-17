@@ -4,6 +4,7 @@ namespace Inventory.Application.Interfaces
 {
     public interface IInventoryConfigurationApplication
     {
+        Task<IEnumerable<AvailableInventoryConfigurationDto>?> GetInventoryConfigurationsBySolutionCenter(long solutionCenterId, string role);
         Task<long> Create(CreateInventoryConfigurationDto request);
         Task<AuditResult<int>> CreateAssignments(long inventoryConfigurationId,CreateInventoryConfigurationAssignmentsDto request);
         Task<object?> GetOptions(int type);

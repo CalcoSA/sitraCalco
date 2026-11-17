@@ -1,7 +1,8 @@
-﻿using Inventory.Domain.Interfaces;
-using Inventory.Domain.Models;
-using Inventory.Infrastructure.Persistance.Data;
+﻿using Inventory.Infrastructure.Persistance.Data;
 using Microsoft.EntityFrameworkCore;
+using Inventory.Domain.Interfaces;
+using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 using FluentValidation;
 using System.Data;
 
@@ -10,9 +11,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
     public class SectionRepository : ISectionRepository
     {
         private readonly SitraCalcoContext _context;
-
-        public SectionRepository(
-            SitraCalcoContext context)
+        public SectionRepository(SitraCalcoContext context)
         {
             _context = context;
         }
@@ -27,6 +26,29 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .Include(section => section.SolutionCenterType)
                 .OrderBy(section =>
                     section.section_name)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Método para obtener todos registros de la tabla Sections asociados a un solutionCenterId y una inventoryConfigurationId.
+        /// </summary>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter</param>
+        /// <param name="inventoryConfigurationId">Identificador del InventoryConfiguration</param>
+        /// <returns>Type: AvailableInventorySectionDto - Lista con la información solicitada</returns>
+        public async Task<IEnumerable<AvailableInventorySectionDto>> GetSections(long solutionCenterId, long inventoryConfigurationId)
+        {
+            return await _context.Sections
+                .AsNoTracking()
+                .Where(section =>
+                    _context.InventoryConfigurationAssignments.Any(assignment =>
+                        assignment.solution_center_id == solutionCenterId && assignment.inventory_configuration_id == inventoryConfigurationId && assignment.section_id == section.section_id))
+                .OrderBy(section => section.section_name)
+                .ThenBy(section => section.section_id)
+                .Select(section => new AvailableInventorySectionDto
+                {
+                    SectionId = section.section_id,
+                    SectionName = section.section_name
+                })
                 .ToListAsync();
         }
 
