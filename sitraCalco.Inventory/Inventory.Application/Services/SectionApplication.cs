@@ -1,7 +1,7 @@
 ﻿using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 using FluentValidation;
 
 namespace Inventory.Application.Services
@@ -11,8 +11,7 @@ namespace Inventory.Application.Services
         private readonly ISectionRepository _sectionRepository;
         private readonly ISolutionCenterRepository _solutionCenterRepository;
 
-        public SectionApplication(
-            ISectionRepository sectionRepository,
+        public SectionApplication(ISectionRepository sectionRepository,
             ISolutionCenterRepository solutionCenterRepository)
         {
             _sectionRepository = sectionRepository;
@@ -49,6 +48,27 @@ namespace Inventory.Application.Services
                         IsActive =
                             section.is_active
                     });
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Método que recibe la solicitud del controlador para obtener todas las secciones asociadas a un centro de solución y una configuración de inventario.
+        /// </summary>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter</param>
+        /// <param name="inventoryConfigurationId">Identificador del InventoryConfiguration</param>
+        /// <returns>Type: AvailableInventorySectionDto - Lista con la información solicitada</returns>
+        public async Task<IEnumerable<AvailableInventorySectionDto>?> GetSectionsBySolutionCenterAndConfiguration(long solutionCenterId, long inventoryConfigurationId)
+        {
+            try
+            {
+                if (solutionCenterId <= 0 || inventoryConfigurationId <= 0)
+                    return null;
+
+                return await _sectionRepository.GetSections(solutionCenterId, inventoryConfigurationId);
             }
             catch
             {

@@ -6,6 +6,7 @@ namespace Inventory.Application.Interfaces
     public interface ISolutionCenterApplication
     {
         Task<IEnumerable<SolutionCenterType>> GetSolutionCenterTypes();
+        Task<IEnumerable<SolutionCenterListDto>?> GetAllSolutionCenters(string role);
         Task<long> CreateSolutionCenter(CreateSolutionCenterDto request);
         Task<AuditResult<long>> CreateSectionConfiguration(long solutionCenterId,CreateSectionConfigurationDto request,string userName);
         Task<PagedDto<SolutionCenterListDto>?> GetPagedSolutionCenters(string role,int page,int take, string? solutionCenterCode);

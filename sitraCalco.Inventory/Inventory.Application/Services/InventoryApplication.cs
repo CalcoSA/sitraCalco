@@ -358,5 +358,73 @@ namespace Inventory.Application.Services
 
             return (InventoryCountsStatus.Success, executionId, null);
         }
+
+        /// <summary>
+        /// Método para obtener el historial de conteos de inventario, filtrado por fechas, centro, configuración y sección.
+        /// </summary>
+        /// <param name="fromDate">Fecha inicial obligatoria</param>
+        /// <param name="toDate">Fecha final opcional</param>
+        /// <param name="solutionCenterId">Identificador del SolutionCenter</param>
+        /// <param name="inventoryConfigurationId">Identificador del InventoryConfiguration</param>
+        /// <param name="sectionId">Identificador de la sección</param>
+        /// <param name="role">Rol del usuario autenticado</param>
+        /// <returns>Type: InventoryHistoryDto - Historial y estado de la consulta</returns>
+        public async Task<(InventoryCountsStatus Status, List<InventoryHistoryDto>? Data, string? Message)> GetHistory(DateOnly? fromDate, DateOnly? toDate, long solutionCenterId, long inventoryConfigurationId, long sectionId, string role)
+        {
+            try
+            {
+                if (!fromDate.HasValue || solutionCenterId <= 0 || inventoryConfigurationId <= 0 || sectionId <= 0)
+                {
+                    return (InventoryCountsStatus.InvalidRequest, null, "La fecha inicial y los identificadores de centro, configuración y sección son obligatorios y deben ser válidos.");
+                }
+
+                var endDate = toDate ?? fromDate.Value;
+
+                if (endDate < fromDate.Value)
+                {
+                    return (InventoryCountsStatus.InvalidRequest, null, "La fecha final no puede ser anterior a la fecha inicial.");
+                }
+
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return (InventoryCountsStatus.Forbidden, null, "El token no contiene un nameRole válido.");
+                }
+
+                var canViewFullDetail = await _permissionApplication.HasPermission(PermissionKeys.ViewFullInventoryDetail, role);
+
+                if (!canViewFullDetail)
+                {
+                    return (InventoryCountsStatus.Forbidden, null, "El rol no tiene permisos para consultar el detalle histórico del inventario.");
+                }
+
+                var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+                var canViewWarehouses = !canViewAll && await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+
+                if (!canViewAll && !canViewWarehouses)
+                {
+                    return (InventoryCountsStatus.Forbidden, null, "El rol no tiene permisos para consultar centros de solución.");
+                }
+
+                var centerTypeId = await _inventoryRepository.GetHistorySolutionCenterType(solutionCenterId);
+
+                if (centerTypeId.HasValue && centerTypeId.Value != 1 && centerTypeId.Value != 2)
+                {
+                    throw new InvalidOperationException("El historial contiene un tipo de centro de solución no reconocido.");
+                }
+
+                if (!canViewAll && centerTypeId.HasValue && centerTypeId.Value != 1)
+                {
+                    return (InventoryCountsStatus.Forbidden, null, "El rol no tiene permisos para consultar este centro de solución.");
+                }
+
+                var history = await _inventoryRepository.GetHistory(fromDate.Value, endDate, solutionCenterId, inventoryConfigurationId, sectionId, canViewAll ? null : 1L);
+
+                return (InventoryCountsStatus.Success, history, null);
+            }
+            catch
+            {
+                throw;
+            }
+        }
     }
 }

@@ -14,5 +14,7 @@ namespace Inventory.Domain.Interfaces
         Task<string?> GetTodayExecutionId(long solutionCenterId, long inventoryConfigurationId, long sectionId, DateTime startDate, DateTime endDate);
         Task<bool> HasDuplicates(IReadOnlyCollection<InventoryRecord> records);
         Task<bool> Save(IReadOnlyCollection<InventoryRecord> records, bool isExistingExecution);
+        Task<long?> GetHistorySolutionCenterType(long solutionCenterId);
+        Task<List<InventoryHistoryDto>> GetHistory(DateOnly fromDate, DateOnly toDate, long solutionCenterId, long inventoryConfigurationId, long sectionId, long? solutionCenterTypeId = null);
     }
 }

@@ -188,5 +188,51 @@ namespace Inventory.Api.Controllers
                 Result = new { }
             });
         }
+
+        [HttpGet("history")]
+        public async Task<IActionResult> GetHistory([FromQuery(Name = "from")] DateOnly? fromDate, [FromQuery(Name = "to")] DateOnly? toDate, [FromQuery] long solutionCenterId, [FromQuery] long inventoryConfigurationId, [FromQuery] long sectionId)
+        {
+            try
+            {
+                var role = User.GetRoleName();
+
+                if (string.IsNullOrWhiteSpace(role))
+                    return Error(403, "El token no contiene un nameRole válido.");
+
+                var result = await _inventoryApplication.GetHistory(fromDate, toDate, solutionCenterId, inventoryConfigurationId, sectionId, role);
+
+                if (result.Status == InventoryCountsStatus.Success)
+                {
+                    var history = result.Data!;
+
+                    return Ok(new ResponseApi
+                    {
+                        IsSuccess = history.Count > 0,
+                        Message = history.Count > 0 ? "Historial de inventario consultado correctamente." : "No se encontraron registros de inventario para los filtros solicitados.",
+                        Result = history
+                    });
+                }
+
+                return result.Status switch
+                {
+                    InventoryCountsStatus.InvalidRequest =>
+                        Error(400, result.Message ?? "Los parámetros de consulta no son válidos."),
+
+                    InventoryCountsStatus.Forbidden =>
+                        Error(403, result.Message ?? "No tiene permisos para consultar el historial de inventario."),
+
+                    InventoryCountsStatus.NotFound =>
+                        Error(404, result.Message ?? "No se encontraron los recursos solicitados."),
+
+                    _ => throw new InvalidOperationException(
+                        "Resultado de consulta de historial no reconocido.")
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar historial de inventario. Desde {From}, hasta {To}, centro {SolutionCenterId}, configuración {InventoryConfigurationId}, sección {SectionId}.", fromDate, toDate, solutionCenterId, inventoryConfigurationId, sectionId);
+                return Error(500, "Ocurrió un error al consultar el historial de inventario.");
+            }
+        }
     }
 }

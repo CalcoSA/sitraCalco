@@ -1,9 +1,9 @@
-﻿using Inventory.Domain.Helpers;
-using Inventory.Domain.Dtos;
-using Inventory.Domain.Interfaces;
-using Inventory.Domain.Models;
-using Inventory.Infrastructure.Persistance.Data;
+﻿using Inventory.Infrastructure.Persistance.Data;
 using Microsoft.EntityFrameworkCore;
+using Inventory.Domain.Interfaces;
+using Inventory.Domain.Helpers;
+using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 using MySqlConnector;
 
 namespace Inventory.Infrastructure.Persistance.Repositories
@@ -12,18 +12,55 @@ namespace Inventory.Infrastructure.Persistance.Repositories
     {
         private readonly SitraCalcoContext _context;
 
-        public SolutionCenterRepository(
-            SitraCalcoContext context)
+        public SolutionCenterRepository(SitraCalcoContext context)
         {
             _context = context;
         }
 
-        public async Task<IEnumerable<SolutionCenterType>>
-            GetSolutionCenterTypes()
+        public async Task<IEnumerable<SolutionCenterType>> GetSolutionCenterTypes()
         {
             return await _context.SolutionCenterTypes
                 .AsNoTracking()
                 .OrderBy(x => x.solution_center_type_id)
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Método para obtener todos los registros de la tabla SolutionCenter
+        /// </summary>
+        /// <param name="solutionCenterTypeId">Identificador del SolutionCenterType</param>
+        /// <returns>Type: SolutionCenterListDto - Lista con la información solicitada</returns>
+        public async Task<IEnumerable<SolutionCenterListDto>> GetAllSolutionCenters(long? solutionCenterTypeId = null)
+        {
+            var query =
+                from solutionCenter in _context.SolutionCenters.AsNoTracking()
+                join solutionCenterType in _context.SolutionCenterTypes.AsNoTracking()
+                on solutionCenter.solution_center_type_id
+                    equals solutionCenterType.solution_center_type_id
+                where solutionCenter.solution_center_type_id == 1 || solutionCenter.solution_center_type_id == 2
+
+                select new
+                {
+                    SolutionCenter = solutionCenter,
+                    SolutionCenterType = solutionCenterType
+                };
+
+            if (solutionCenterTypeId.HasValue)
+            {
+                query = query.Where(x => x.SolutionCenter.solution_center_type_id == solutionCenterTypeId.Value);
+            }
+
+            return await query
+                .OrderBy(x => x.SolutionCenter.solution_center_name)
+                .Select(x => new SolutionCenterListDto
+                {
+                    SolutionCenterId = x.SolutionCenter.solution_center_id,
+                    SolutionCenterTypeId = x.SolutionCenter.solution_center_type_id,
+                    SolutionCenterTypeName = x.SolutionCenterType.solution_center_type_name,
+                    SolutionCenterCode = x.SolutionCenter.solution_center_code,
+                    SolutionCenterName = x.SolutionCenter.solution_center_name,
+                    IsActive = x.SolutionCenter.is_active
+                })
                 .ToListAsync();
         }
 

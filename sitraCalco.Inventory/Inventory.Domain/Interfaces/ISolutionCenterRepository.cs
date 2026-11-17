@@ -6,6 +6,7 @@ namespace Inventory.Domain.Interfaces
     public interface ISolutionCenterRepository
     {
         Task<IEnumerable<SolutionCenterType>>GetSolutionCenterTypes();
+        Task<IEnumerable<SolutionCenterListDto>> GetAllSolutionCenters(long? solutionCenterTypeId = null);
         Task<bool> SolutionCenterTypeExists(long solutionCenterTypeId);
         Task<bool> SolutionCenterCodeExists(string solutionCenterCode);
         Task<long> CreateSolutionCenter(SolutionCenter solutionCenter);

@@ -1,9 +1,9 @@
-﻿using Inventory.Api.Extensions;
+﻿using Microsoft.AspNetCore.Authorization;
 using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
 using Inventory.Domain.Responses;
-using Microsoft.AspNetCore.Authorization;
+using Inventory.Api.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Api.Controllers
 {
@@ -16,8 +16,7 @@ namespace Inventory.Api.Controllers
         private readonly ILogApplication _logApplication;
         private readonly ILogger<SolutionCenterController> _logger;
 
-        public SolutionCenterController(
-            ISolutionCenterApplication solutionCenterApplication,
+        public SolutionCenterController(ISolutionCenterApplication solutionCenterApplication,
             ILogApplication logApplication,
             ILogger<SolutionCenterController> logger)
         {
@@ -69,6 +68,68 @@ namespace Inventory.Api.Controllers
                     IsSuccess = false,
                     Message =
                         "Ocurrió un error al consultar los tipos de bodegas y puntos de venta.",
+                    Result = new { }
+                });
+            }
+        }
+
+        [HttpGet("all")]
+        public async Task<IActionResult> GetAllSolutionCenters()
+        {
+            var role = User.GetRoleName();
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(role))
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        new ResponseApi
+                        {
+                            IsSuccess = false,
+                            Message = "El token no contiene un nameRole válido.",
+                            Result = new { }
+                        });
+                }
+
+                var solutionCenters = await _solutionCenterApplication.GetAllSolutionCenters(role);
+
+                if (solutionCenters is null)
+                {
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        new ResponseApi
+                        {
+                            IsSuccess = false,
+                            Message = "El rol del token no tiene permisos para esta consulta.",
+                            Result = new { }
+                        });
+                }
+
+                var centers = solutionCenters.ToList();
+
+                if (!centers.Any())
+                {
+                    return Ok(new ResponseApi
+                    {
+                        IsSuccess = false,
+                        Message = "No se encontraron centros de solución.",
+                        Result = centers
+                    });
+                }
+
+                return Ok(new ResponseApi
+                {
+                    IsSuccess = true,
+                    Message = "Centros de solución consultados correctamente.",
+                    Result = centers
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al consultar todos los centros de solución para el rol {Role}.", role);
+                return StatusCode(500, new ResponseApi
+                {
+                    IsSuccess = false,
+                    Message = "Ocurrió un error al consultar los centros de solución.",
                     Result = new { }
                 });
             }

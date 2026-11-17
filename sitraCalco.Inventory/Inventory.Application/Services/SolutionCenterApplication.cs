@@ -1,27 +1,22 @@
 ﻿using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
 using Inventory.Application.Constants;
 using Inventory.Domain.Interfaces;
 using Inventory.Domain.Models;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Application.Services
 {
     public class SolutionCenterApplication : ISolutionCenterApplication
     {
         private readonly ISolutionCenterRepository _solutionCenterRepository;
-        private readonly IProductRepository    _productRepository;
+        private readonly IProductRepository _productRepository;
         private readonly IPermissionApplication _permissionApplication;
-
-        public SolutionCenterApplication(
-    ISolutionCenterRepository solutionCenterRepository,
-    IProductRepository productRepository,
-    IPermissionApplication permissionApplication)
+        public SolutionCenterApplication(ISolutionCenterRepository solutionCenterRepository,
+            IProductRepository productRepository,
+            IPermissionApplication permissionApplication)
         {
-            _solutionCenterRepository =
-                solutionCenterRepository;
-
-            _productRepository =
-                productRepository;
+            _solutionCenterRepository = solutionCenterRepository;
+            _productRepository = productRepository;
             _permissionApplication = permissionApplication;
         }
 
@@ -38,6 +33,41 @@ namespace Inventory.Application.Services
             {
                 return await _solutionCenterRepository
                     .GetSolutionCenterTypes();
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+
+        /// <summary>
+        /// Método que recibe la solicitud del controlador para obtener todos los SolutionCenter.
+        /// </summary>
+        /// <param name="role">Type: string - Role para filtrar por permisos</param>
+        /// <returns>Type: SolutionCenterListDto - Lista con la información solicitada</returns>
+        public async Task<IEnumerable<SolutionCenterListDto>?> GetAllSolutionCenters(string role)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(role))
+                    return null;
+
+                var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+
+                if (canViewAll)
+                {
+                    return await _solutionCenterRepository.GetAllSolutionCenters();
+                }
+
+                var canViewWarehouses = await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+
+                if (canViewWarehouses)
+                {
+                    return await _solutionCenterRepository.GetAllSolutionCenters(solutionCenterTypeId: 1);
+                }
+
+                return null;
             }
             catch
             {
