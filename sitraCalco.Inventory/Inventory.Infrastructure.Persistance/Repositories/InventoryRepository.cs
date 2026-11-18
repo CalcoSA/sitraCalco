@@ -332,6 +332,7 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .ThenBy(record => record.inventory_id)
                 .Select(record => new
                 {
+                    record.inventory_id,
                     record.inventory_execution_id,
                     record.product_id,
                     record.reference,
@@ -342,6 +343,8 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                     record.open,
                     record.closed,
                     record.multiplication_value,
+                    record.siesa_stock,
+                    record.observations,
                     record.entered_by
                 })
                 .ToListAsync();
@@ -369,11 +372,14 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                                     .OrderBy(record => record.count_number)
                                     .Select(record => new InventoryHistoryCountDto
                                     {
+                                        InventoryId = record.inventory_id,
                                         CountNumber = record.count_number,
                                         CountValue = record.count_value,
                                         Open = record.open,
                                         Closed = record.closed,
                                         MultiplicationValue = record.multiplication_value,
+                                        SiesaStock = record.siesa_stock,
+                                        Observations = record.observations,
                                         EnteredBy = record.entered_by
                                     })
                                     .ToList()
@@ -386,6 +392,57 @@ namespace Inventory.Infrastructure.Persistance.Repositories
                 .OrderBy(execution => execution.Date)
                 .ThenBy(execution => execution.InventoryExecutionId)
                 .ToList();
+        }
+
+        /// <summary>
+        /// Método para obtener un registro de inventario por su identificador.
+        /// </summary>
+        /// <param name="inventoryId">Identificador del registro de inventario</param>
+        /// <returns>Type: InventoryRecord - Registro solicitado</returns>
+        public async Task<InventoryRecord?> GetInventoryRecordById(long inventoryId)
+        {
+            return await _context.InventoryRecords
+                .AsNoTracking()
+                .FirstOrDefaultAsync(record => record.inventory_id == inventoryId);
+        }
+
+        /// <summary>
+        /// Método para actualizar únicamente las observaciones de un registro de inventario.
+        /// </summary>
+        /// <param name="inventoryId">Identificador del registro de inventario</param>
+        /// <param name="observations">Observaciones del inventario</param>
+        /// <returns>Type: bool - Resultado de la actualización</returns>
+        public async Task<bool> UpdateObservations(long inventoryId, string observations, bool append)
+        {
+            if (!append)
+            {
+                var updated = await _context.InventoryRecords
+                    .Where(record => record.inventory_id == inventoryId)
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(record => record.observations, observations));
+
+                return updated > 0;
+            }
+
+            var appended = await _context.InventoryRecords
+                .Where(record =>
+                    record.inventory_id == inventoryId &&
+                    (
+                        record.observations == null ||
+                        record.observations == "" ||
+                        record.observations.Length + observations.Length + 1 <= 1000
+                    ))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(
+                        record => record.observations,
+                        record =>
+                            record.observations == null ||
+                            record.observations == ""
+                                ? observations
+                                : record.observations + "\n" + observations
+                    ));
+
+            return appended > 0;
         }
     }
 }
