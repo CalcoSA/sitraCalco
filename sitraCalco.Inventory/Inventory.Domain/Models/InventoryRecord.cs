@@ -22,6 +22,8 @@ namespace Inventory.Domain.Models
         public decimal? open { get; set; }
         public decimal? closed { get; set; }
         public decimal? multiplication_value { get; set; }
+        public decimal? siesa_stock { get; set; }
+        public string? observations { get; set; }
         public string entered_by { get; set; } = null!;
         public DateTime created_at { get; set; }
     }

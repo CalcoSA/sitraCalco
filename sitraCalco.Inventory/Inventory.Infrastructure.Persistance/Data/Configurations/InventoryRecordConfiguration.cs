@@ -29,6 +29,8 @@ namespace Inventory.Infrastructure.Persistance.Data.Configurations
             entity.Property(e => e.product_name).HasMaxLength(500).IsRequired();
             entity.Property(e => e.unit_of_measure).HasMaxLength(200).IsRequired();
             entity.Property(e => e.plan_id).HasMaxLength(50);
+            entity.Property(e => e.siesa_stock).HasPrecision(18, 4);
+            entity.Property(e => e.observations).HasMaxLength(1000).IsRequired(false);
 
             // Pomelo mapea byte a tinyint unsigned por convención.
             entity.Property(e => e.count_number).IsRequired();
