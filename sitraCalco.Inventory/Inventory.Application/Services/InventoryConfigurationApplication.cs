@@ -7,6 +7,7 @@ using Inventory.Domain.Helpers;
 using Inventory.Domain.Options;
 using Inventory.Domain.Models;
 using Inventory.Domain.Dtos;
+using System.Data.Common;
 
 namespace Inventory.Application.Services
 {
@@ -440,37 +441,50 @@ namespace Inventory.Application.Services
 
             if (canViewFullDetail && result.Data.Count > 0)
             {
-                var center = await _inventoryConfigurationRepository
-                    .GetSolutionCenterById(solutionCenterId);
-
-                if (center is null)
-                    throw new InvalidOperationException(
-                        "El centro de solución dejó de existir.");
-
-                var warehouseCode = center.solution_center_code.Trim();
-
-                var references = result.Data
-                    .Select(product => product.Reference)
-                    .ToArray();
-
-                var stocks = await _siesaRepository.GetExistences(
-                    warehouseCode,
-                    references);
-
-                foreach (var product in result.Data)
+                try
                 {
-                    if (stocks.TryGetValue(
-                        product.Reference.Trim(),
-                        out var stock))
+                    var center = await _inventoryConfigurationRepository
+                        .GetSolutionCenterById(solutionCenterId);
+
+                    if (center is null)
+                        throw new InvalidOperationException(
+                            "El centro de solución dejó de existir.");
+
+                    var warehouseCode = center.solution_center_code.Trim();
+
+                    var references = result.Data
+                        .Select(product => product.Reference)
+                        .ToArray();
+
+                    var stocks = await _siesaRepository.GetExistences(
+                        warehouseCode,
+                        references);
+
+                    foreach (var product in result.Data)
                     {
-                        product.UnidadInventario = stock.UnitInventory;
-                        product.Existencia1 = stock.Existence1;
-                        product.Existencia2 = stock.Existence2;
-                        product.SiesaStockStatus = "FOUND";
+                        if (stocks.TryGetValue(
+                            product.Reference.Trim(),
+                            out var stock))
+                        {
+                            product.UnidadInventario = stock.UnitInventory;
+                            product.Existencia1 = stock.Existence1;
+                            product.Existencia2 = stock.Existence2;
+                            product.SiesaStockStatus = "FOUND";
+                        }
+                        else
+                        {
+                            product.SiesaStockStatus = "NOT_FOUND";
+                        }
                     }
-                    else
+                }
+                catch (Exception ex) when (ex is DbException || ex is TimeoutException)
+                {
+                    foreach (var product in result.Data)
                     {
-                        product.SiesaStockStatus = "NOT_FOUND";
+                        product.UnidadInventario = null;
+                        product.Existencia1 = null;
+                        product.Existencia2 = null;
+                        product.SiesaStockStatus = "UNAVAILABLE";
                     }
                 }
             }
