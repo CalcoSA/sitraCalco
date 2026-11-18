@@ -1,11 +1,11 @@
-using Inventory.Api.Extensions;
-using Inventory.Application.Interfaces;
-using Inventory.Domain.Dtos;
-using Inventory.Domain.Helpers;
-using Inventory.Domain.Responses;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Authorization;
+using Inventory.Application.Interfaces;
+using Inventory.Domain.Responses;
+using Inventory.Api.Extensions;
+using Inventory.Domain.Helpers;
+using Microsoft.AspNetCore.Mvc;
+using Inventory.Domain.Dtos;
 
 namespace Inventory.Api.Controllers
 {
@@ -179,16 +179,6 @@ namespace Inventory.Api.Controllers
             }
         }
 
-        private ObjectResult Error(int statusCode, string message)
-        {
-            return StatusCode(statusCode, new ResponseApi
-            {
-                IsSuccess = false,
-                Message = message,
-                Result = new { }
-            });
-        }
-
         [HttpGet("history")]
         public async Task<IActionResult> GetHistory([FromQuery(Name = "from")] DateOnly? fromDate, [FromQuery(Name = "to")] DateOnly? toDate, [FromQuery] long solutionCenterId, [FromQuery] long inventoryConfigurationId, [FromQuery] long sectionId)
         {
@@ -233,6 +223,77 @@ namespace Inventory.Api.Controllers
                 _logger.LogError(ex, "Error al consultar historial de inventario. Desde {From}, hasta {To}, centro {SolutionCenterId}, configuración {InventoryConfigurationId}, sección {SectionId}.", fromDate, toDate, solutionCenterId, inventoryConfigurationId, sectionId);
                 return Error(500, "Ocurrió un error al consultar el historial de inventario.");
             }
+        }
+
+        [HttpPatch("{inventoryId:long}/observations")]
+        public async Task<IActionResult> UpdateObservations(long inventoryId, [FromBody] UpdateInventoryDto? request)
+        {
+            try
+            {
+                if (inventoryId <= 0)
+                    return Error(400, "El identificador del inventario debe ser mayor a cero.");
+
+                if (request is null || string.IsNullOrWhiteSpace(request.Observations) || request.Observations.Trim().Length > 1000)
+                {
+                    return Error(400, "Las observaciones son obligatorias y no pueden superar 1000 caracteres.");
+                }
+
+                var userLogin = User.GetUserLogin();
+
+                if (string.IsNullOrWhiteSpace(userLogin))
+                    return Error(403, "El token no contiene un userLogin válido.");
+
+                var role = User.GetRoleName();
+
+                if (string.IsNullOrWhiteSpace(role))
+                    return Error(403, "El token no contiene un nameRole válido.");
+
+                var result = await _inventoryApplication.UpdateObservations(inventoryId, request.Observations, userLogin, role, User.GetSolutionCenterCode(), request.Append);
+
+                return result.Status switch
+                {
+                    InventoryCountsStatus.Success => Ok(new ResponseApi
+                    {
+                        IsSuccess = true,
+                        Message = request.Append
+                            ? "Observación agregada correctamente."
+                            : "Observaciones sobrescritas correctamente.",
+                        Result = new
+                        {
+                            InventoryId = inventoryId,
+                            SubmittedObservations = request.Observations.Trim(),
+                            Append = request.Append
+                        }
+                    }),
+
+                    InventoryCountsStatus.InvalidRequest =>
+                        Error(400, result.Message ?? "La solicitud no es válida."),
+
+                    InventoryCountsStatus.Forbidden =>
+                        Error(403, result.Message ?? "No tiene permisos para actualizar las observaciones."),
+
+                    InventoryCountsStatus.NotFound =>
+                        Error(404, result.Message ?? "El registro de inventario no existe."),
+
+                    _ => throw new InvalidOperationException(
+                        "Resultado de actualización de observaciones no reconocido.")
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al actualizar observaciones del inventario {InventoryId}.", inventoryId);
+                return Error(500, "Ocurrió un error al actualizar las observaciones del inventario.");
+            }
+        }
+
+        private ObjectResult Error(int statusCode, string message)
+        {
+            return StatusCode(statusCode, new ResponseApi
+            {
+                IsSuccess = false,
+                Message = message,
+                Result = new { }
+            });
         }
     }
 }

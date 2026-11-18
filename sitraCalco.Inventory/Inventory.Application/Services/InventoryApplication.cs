@@ -185,9 +185,15 @@ namespace Inventory.Application.Services
                 return Failure(InventorySaveStatus.InvalidRequest, "Un inventario de punto de venta no puede contener countValue.");
 
             // Rechazar valores no representables en la tabla, sin redondearlos ni recalcularlos.
-            if (items.Any(item => !FitsDecimal(item.CountValue) || !FitsDecimal(item.Open) ||
-                !FitsDecimal(item.Closed) || !FitsDecimal(item.MultiplicationValue)))
+            if (items.Any(item =>
+                !FitsDecimal(item.CountValue) ||
+                !FitsDecimal(item.Open) ||
+                !FitsDecimal(item.Closed) ||
+                !FitsDecimal(item.MultiplicationValue) ||
+                !FitsDecimal(item.SiesaStock)))
+            {
                 return Failure(InventorySaveStatus.InvalidRequest, "Los valores numéricos deben caber en DECIMAL(18,4), sin más de cuatro decimales.");
+            }
 
             var executionId = isExistingExecution ? executionGuid.ToString() : Guid.NewGuid().ToString();
             if (isExistingExecution)
@@ -239,10 +245,12 @@ namespace Inventory.Application.Services
                     open = typeId == pointOfSaleTypeId ? item.Open : null,
                     closed = typeId == pointOfSaleTypeId ? item.Closed : null,
                     multiplication_value = item.MultiplicationValue,
+                    siesa_stock = item.SiesaStock,
+                    observations = null,
                     entered_by = request.EnteredBy!.Trim()
                     // created_at queda a cargo del default de MySQL ya mapeado.
                 };
-            }).ToList();
+            }).ToList();    
 
             const string duplicateMessage = "El conteo contiene registros ya guardados para esta ejecución.";
             if (await _inventoryRepository.HasDuplicates(records))
@@ -420,6 +428,111 @@ namespace Inventory.Application.Services
                 var history = await _inventoryRepository.GetHistory(fromDate.Value, endDate, solutionCenterId, inventoryConfigurationId, sectionId, canViewAll ? null : 1L);
 
                 return (InventoryCountsStatus.Success, history, null);
+            }
+            catch
+            {
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Método para actualizar únicamente las observaciones de un registro de inventario.
+        /// </summary>
+        /// <param name="inventoryId">Identificador del registro de inventario</param>
+        /// <param name="observations">Observaciones del inventario</param>
+        /// <param name="userLogin">Usuario autenticado</param>
+        /// <param name="role">Rol del usuario autenticado</param>
+        /// <param name="solutionCenterCode">Código del centro de solución del usuario</param>
+        /// <returns>Type: InventoryCountsStatus - Estado de la operación</returns>
+        public async Task<(InventoryCountsStatus Status, string? Message)> UpdateObservations(long inventoryId, string? observations, string userLogin, string role, string? solutionCenterCode, bool append)
+        {
+            try
+            {
+                if (inventoryId <= 0 || string.IsNullOrWhiteSpace(observations) || observations.Trim().Length > 1000)
+                {
+                    return (InventoryCountsStatus.InvalidRequest, "El identificador debe ser mayor a cero y las observaciones deben contener entre 1 y 1000 caracteres.");
+                }
+
+                if (string.IsNullOrWhiteSpace(userLogin) || string.IsNullOrWhiteSpace(role))
+                {
+                    return (InventoryCountsStatus.Forbidden, "El token no contiene información válida del usuario.");
+                }
+
+                var canViewFullDetail = await _permissionApplication.HasPermission(PermissionKeys.ViewFullInventoryDetail, role);
+
+                if (!canViewFullDetail)
+                {
+                    return (InventoryCountsStatus.Forbidden, "El rol no tiene permisos para actualizar observaciones.");
+                }
+
+                var record = await _inventoryRepository.GetInventoryRecordById(inventoryId);
+
+                if (record is null)
+                {
+                    return (InventoryCountsStatus.NotFound, "El registro de inventario no existe.");
+                }
+
+                var canViewAll = await _permissionApplication.HasPermission(PermissionKeys.ViewAllSolutionCenters, role);
+                var canViewWarehouses = await _permissionApplication.HasPermission(PermissionKeys.ViewWarehousesOnly, role);
+
+                if (!canViewAll && !canViewWarehouses)
+                {
+                    return (InventoryCountsStatus.Forbidden, "No tiene permisos para actualizar observaciones de este centro de solución.");
+                }
+
+                var normalizedObservations = observations.Trim();
+
+                if (!append && string.Equals(record.observations, normalizedObservations, StringComparison.Ordinal))
+                {
+                    return (InventoryCountsStatus.Success, null);
+                }
+
+                if (append)
+                {
+                    var previousLength = record.observations?.Length ?? 0;
+                    var separatorLength = previousLength > 0 ? 1 : 0;
+                    var totalLength = previousLength + separatorLength + normalizedObservations.Length;
+
+                    if (totalLength > 1000)
+                    {
+                        return (InventoryCountsStatus.InvalidRequest, "Las observaciones acumuladas no pueden superar 1000 caracteres.");
+                    }
+                }
+
+                var updated = await _inventoryRepository.UpdateObservations(inventoryId, normalizedObservations, append);
+
+                if (!updated)
+                {
+                    var currentRecord = await _inventoryRepository.GetInventoryRecordById(inventoryId);
+
+                    if (currentRecord is null)
+                    {
+                        return (InventoryCountsStatus.NotFound, "El registro de inventario no existe.");
+                    }
+
+                    return (InventoryCountsStatus.InvalidRequest, "No se pudo actualizar la observación. Verifique el límite de 1000 caracteres e intente nuevamente.");
+                }
+
+                var auditDescription = append
+                    ? $"Se agregó una observación al registro de inventario {inventoryId}. " +
+                      $"Ejecución: {record.inventory_execution_id}. Conteo: {record.count_number}."
+                    : $"Se sobrescribieron las observaciones del registro de inventario {inventoryId}. " +
+                      $"Ejecución: {record.inventory_execution_id}. Conteo: {record.count_number}.";
+
+                var logId = await _logApplication.CreateLog(new CreateLogDto
+                {
+                    Action = "Actualizar",
+                    Module = "Inventarios",
+                    Description = auditDescription,
+                    UserName = userLogin.Trim()
+                });
+
+                if (logId <= 0)
+                {
+                    throw new InvalidOperationException($"Las observaciones del registro {inventoryId} se guardaron, pero falló su auditoría.");
+                }
+
+                return (InventoryCountsStatus.Success, null);
             }
             catch
             {

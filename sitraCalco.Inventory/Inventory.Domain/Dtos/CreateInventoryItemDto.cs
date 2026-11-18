@@ -7,5 +7,6 @@ namespace Inventory.Domain.Dtos
         public decimal? Open { get; set; }
         public decimal? Closed { get; set; }
         public decimal? MultiplicationValue { get; set; }
+        public decimal? SiesaStock { get; set; }
     }
 }
